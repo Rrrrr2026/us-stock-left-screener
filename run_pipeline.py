@@ -72,12 +72,15 @@ def run(use_cache=True):
     stocks = [(r["code"], r["name"], r["sector"]) for _, r in universe.iterrows()]
     workers = CONFIG["fetch"]["max_workers"] or min(12, (os.cpu_count() or 4) * 2)
 
+    _bench = ds.fetch_benchmark()
+    bench_close = _bench["close"] if (_bench is not None and not _bench.empty) else None
+
     # ---- 阶段A: 技术扫描 ----
     def _scan(code, name, sector):
         h = ds.fetch_hist(code)
         if h is None:
             return None
-        rec, detail = m2.scan_one(code, name, h, None)
+        rec, detail = m2.scan_one(code, name, h, None, bench_close=bench_close)
         if rec is None or rec["tech_score"] < CONFIG["tech"]["min_tech_score"]:
             return None
         rec["industry"] = sector

@@ -39,12 +39,24 @@ def pull_fundamentals(code: str, sector: str | None = None,
         "pb": None, "pb_pct": None, "dividend_yield": None,
         "eps": None, "eps_yoy": None, "roe": None, "roe_trend": [],
         "revenue_yoy": None, "netprofit_yoy": None, "gross_margin": None, "debt_ratio": None,
+        "target_price": None, "analyst_rating": None, "analyst_count": None, "upside_pct": None,
         "fund_flags": [],
     }
     info = ds.fetch_info(code)
     if not info:
         res["fund_flags"] = _flags(res)
         return res
+
+    # 分析师目标价 / 评级 / 上涨空间
+    res["target_price"] = _num(info.get("targetMeanPrice"))
+    res["analyst_count"] = _num(info.get("numberOfAnalystOpinions"))
+    rk = info.get("recommendationKey")
+    _RK = {"strong_buy": "强力买入", "buy": "买入", "hold": "持有",
+           "sell": "卖出", "strong_sell": "强力卖出", "underperform": "跑输", "outperform": "跑赢"}
+    res["analyst_rating"] = _RK.get(str(rk), rk) if rk and rk != "none" else None
+    cur = _num(info.get("currentPrice")) or _num(info.get("regularMarketPrice"))
+    if res["target_price"] and cur and cur > 0:
+        res["upside_pct"] = round((res["target_price"] / cur - 1.0) * 100.0, 1)
 
     res["pe_ttm"] = _num(info.get("trailingPE"))
     res["pb"] = _num(info.get("priceToBook"))

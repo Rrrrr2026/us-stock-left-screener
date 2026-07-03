@@ -83,7 +83,9 @@ CONFIG = {
         "rsi_oversold": 38.0,
         "drawdown_min": 0.18,
         "weights": {"channel": 1.0, "pivot": 1.0, "ma": 0.8,
-                    "oversold_div": 1.2, "drawdown": 0.6},
+                    "oversold_div": 1.2, "drawdown": 0.6, "vol_confirm": 0.5},
+        "boll_n": 20, "boll_k": 2.0,    # 布林带下轨(额外支撑参考)
+        "vol_shrink_ratio": 0.85,       # 支撑处近量/20日均量 < 此值 = 缩量企稳
         "min_tech_score": 1.0,
         "detail_bars": 250,
     },
