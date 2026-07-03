@@ -73,7 +73,11 @@ def run(use_cache=True):
     workers = CONFIG["fetch"]["max_workers"] or min(12, (os.cpu_count() or 4) * 2)
 
     _bench = ds.fetch_benchmark()
-    bench_close = _bench["close"] if (_bench is not None and not _bench.empty) else None
+    if _bench is not None and not _bench.empty:
+        # 日期作索引 -> beta() 按日期交集对齐
+        bench_close = _bench.set_index(_bench["date"].astype(str))["close"]
+    else:
+        bench_close = None
 
     # ---- 阶段A: 技术扫描 ----
     def _scan(code, name, sector):
