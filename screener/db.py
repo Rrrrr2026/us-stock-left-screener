@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS stock_detail(
     run_date TEXT, code TEXT, detail_json TEXT,
     PRIMARY KEY(run_date, code)
 );
+CREATE TABLE IF NOT EXISTS profile(
+    run_date TEXT, code TEXT, profile_json TEXT,
+    PRIMARY KEY(run_date, code)
+);
 CREATE TABLE IF NOT EXISTS run_log(
     run_date TEXT PRIMARY KEY, started_at TEXT, finished_at TEXT,
     n_scanned INTEGER, n_hit INTEGER, selected_industries TEXT,
@@ -104,7 +108,7 @@ def _migrate(conn):
 
 
 _RUN_TABLES = ("industry_score", "tech_scan", "fundamental",
-               "final_rank", "stock_detail", "run_log")
+               "final_rank", "stock_detail", "profile", "run_log")
 
 
 def clear_run(run_date: str):
@@ -189,6 +193,13 @@ def save_detail(run_date: str, code: str, detail: dict):
     _upsert("stock_detail", [{
         "run_date": run_date, "code": code,
         "detail_json": json.dumps(detail, ensure_ascii=False),
+    }])
+
+
+def save_profile(run_date: str, code: str, profile: dict):
+    _upsert("profile", [{
+        "run_date": run_date, "code": code,
+        "profile_json": json.dumps(profile, ensure_ascii=False),
     }])
 
 

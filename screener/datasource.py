@@ -367,6 +367,293 @@ def fetch_roe_trend(code: str) -> list:
 
 
 # ===========================================================================
+#  3b) 深度档案: 现金流 / 营收 / 新闻 / 期权 / FINRA 场外空头占比
+# ===========================================================================
+def _stmt_row(df, names):
+    """从财报 DataFrame 里按候选行名取一行 (Series, 索引=财报期)。"""
+    if df is None or getattr(df, "empty", True):
+        return None
+    for n in names:
+        if n in df.index:
+            return df.loc[n]
+    return None
+
+
+def _row_by_year(series):
+    """财报行 -> {年份str: 百万美元float}; NaN 跳过。"""
+    out = {}
+    if series is None:
+        return out
+    for col, v in series.items():
+        try:
+            v = float(v)
+        except Exception:
+            continue
+        if pd.isna(v):
+            continue
+        out[pd.Timestamp(col).strftime("%Y")] = round(v / 1e6, 1)
+    return out
+
+
+def fetch_cashflow(code: str) -> dict:
+    """年度现金流关键科目 (百万美元, 近4财年)。用于"钱流向哪了"分析:
+    经营现金流 / 资本开支 / 自由现金流 / 收购 / 回购 / 分红 / 净发债 / 净利润。"""
+    key = _cache_key("cashflow", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, dict) else {}
+    out = {}
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        cf = _retry(lambda: tk.cash_flow)
+        rows = {
+            "ocf":      ("Operating Cash Flow", "Cash Flow From Continuing Operating Activities"),
+            "capex":    ("Capital Expenditure",),
+            "fcf":      ("Free Cash Flow",),
+            "acq":      ("Purchase Of Business", "Net Business Purchase And Sale"),
+            "buyback":  ("Repurchase Of Capital Stock",),
+            "dividend": ("Cash Dividends Paid", "Common Stock Dividend Paid"),
+            "debt_net": ("Net Issuance Payments Of Debt",),
+            "debt_iss": ("Issuance Of Debt", "Long Term Debt Issuance"),
+            "debt_rep": ("Repayment Of Debt", "Long Term Debt Payments"),
+            "net_income": ("Net Income From Continuing Operations", "Net Income"),
+            "invest_cf": ("Investing Cash Flow",),
+            "fin_cf":   ("Financing Cash Flow",),
+            "end_cash": ("End Cash Position",),
+        }
+        data = {k: _row_by_year(_stmt_row(cf, names)) for k, names in rows.items()}
+        years = sorted({y for d in data.values() for y in d})[-4:]
+        if years:
+            out = {"years": years}
+            for k, d in data.items():
+                out[k] = [d.get(y) for y in years]
+    except Exception as e:
+        log.debug("fetch_cashflow %s 失败: %s", code, e)
+        out = {}
+    _cache_save(key, out)
+    return out
+
+
+def fetch_revenue_trend(code: str) -> dict:
+    """营收增速(年度+季度, YoY) + 最近财年"营收流向"成本结构拆解
+    (营业成本/研发/销售管理/税/净利, 各项含同比 — 用于饼图与增速标注)。
+    注: 免费数据源无分部(business segment)营收, 以成本结构拆解替代。"""
+    key = _cache_key("revtrend", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, dict) else {}
+    out = {}
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        inc = _retry(lambda: tk.income_stmt)
+        qinc = _retry(lambda: tk.quarterly_income_stmt)
+        rev = _row_by_year(_stmt_row(inc, ("Total Revenue", "Operating Revenue")))
+        years = sorted(rev)[-5:]
+        yoy = []
+        for i, y in enumerate(years):
+            prev = rev.get(str(int(y) - 1))
+            yoy.append(round((rev[y] / prev - 1) * 100.0, 1) if (prev and prev > 0) else None)
+        out["years"] = years
+        out["revenue"] = [rev.get(y) for y in years]
+        out["rev_yoy"] = yoy
+
+        # 季度营收 (近8季, YoY 需同比4季前)
+        qrow = _stmt_row(qinc, ("Total Revenue", "Operating Revenue"))
+        if qrow is not None:
+            q = []
+            for col, v in qrow.items():
+                try:
+                    v = float(v)
+                except Exception:
+                    continue
+                if pd.isna(v):
+                    continue
+                q.append((pd.Timestamp(col), round(v / 1e6, 1)))
+            q.sort(key=lambda t: t[0])
+            out["quarters"] = [t[0].strftime("%Y-%m") for t in q][-8:]
+            out["q_revenue"] = [t[1] for t in q][-8:]
+
+        # 成本结构拆解 (最近财年 vs 上一财年 -> 各项 YoY)
+        items = {
+            "营业成本": ("Cost Of Revenue",),
+            "研发投入": ("Research And Development",),
+            "销售与管理": ("Selling General And Administration",
+                       "Selling General And Administrative"),
+            "所得税": ("Tax Provision",),
+            "净利润": ("Net Income", "Net Income Common Stockholders"),
+        }
+        if years and rev.get(years[-1]):
+            y_now, y_prev = years[-1], str(int(years[-1]) - 1)
+            total_now = rev[y_now]
+            comps, used = [], 0.0
+            for lab, names in items.items():
+                d = _row_by_year(_stmt_row(inc, names))
+                v_now, v_prev = d.get(y_now), d.get(y_prev)
+                if v_now is None:
+                    continue
+                item_yoy = (round((v_now / v_prev - 1) * 100.0, 1)
+                            if (v_prev and v_prev > 0) else None)
+                comps.append({"name": lab, "value": abs(round(v_now, 1)), "yoy": item_yoy})
+                if lab != "净利润":
+                    used += abs(v_now)
+            ni = next((x["value"] for x in comps if x["name"] == "净利润"), 0)
+            other = round(total_now - used - ni, 1)
+            if other > total_now * 0.01:
+                comps.append({"name": "其他费用/摊销", "value": other, "yoy": None})
+            out["cost_year"] = y_now
+            out["cost_total"] = round(total_now, 1)
+            out["cost_items"] = comps
+    except Exception as e:
+        log.debug("fetch_revenue_trend %s 失败: %s", code, e)
+        out = {}
+    _cache_save(key, out)
+    return out
+
+
+_POS_KW = ("beat", "beats", "tops", "top estimate", "upgrade", "raised", "raises",
+           "buyback", "record", "surge", "soars", "soar", "jumps", "jump", "rally",
+           "wins", "win ", "approval", "approves", "partnership", "outperform",
+           "strong", "expands", "expansion", "better-than-expected", "bullish",
+           "dividend increase", "hikes dividend", "all-time high", "breakthrough")
+_NEG_KW = ("miss", "misses", "downgrade", "cut", "cuts", "lawsuit", "sues", "probe",
+           "investigation", "recall", "layoff", "warns", "warning", "plunge",
+           "sinks", "slump", "falls", "drops", "tumbles", "bearish", "fraud",
+           "bankruptcy", "underperform", "weak", "sec charges", "delist",
+           "short seller", "guidance cut", "halts", "fined", "penalty")
+
+
+def _news_tone(title: str) -> str:
+    t = (title or "").lower()
+    pos = sum(1 for k in _POS_KW if k in t)
+    neg = sum(1 for k in _NEG_KW if k in t)
+    if pos > neg:
+        return "利好"
+    if neg > pos:
+        return "利空"
+    return "中性"
+
+
+def fetch_news(code: str, limit: int = 12) -> list:
+    """Yahoo 财经个股新闻 (标题/来源/时间/链接), 关键词法粗分 利好/利空/中性。"""
+    key = _cache_key("news", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, list) else []
+    out = []
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        raw = _retry(lambda: tk.news) or []
+        for it in raw[:limit]:
+            content = it.get("content") if isinstance(it.get("content"), dict) else it
+            title = content.get("title")
+            if not title:
+                continue
+            # 新版: provider.displayName / canonicalUrl.url / pubDate(ISO)
+            prov = content.get("provider")
+            publisher = (prov or {}).get("displayName") if isinstance(prov, dict) \
+                else content.get("publisher")
+            url = None
+            cu = content.get("canonicalUrl")
+            if isinstance(cu, dict):
+                url = cu.get("url")
+            url = url or content.get("link")
+            ts = content.get("pubDate")
+            if not ts and content.get("providerPublishTime"):
+                try:
+                    ts = dt.datetime.fromtimestamp(
+                        int(content["providerPublishTime"])).strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    ts = None
+            if isinstance(ts, str) and "T" in ts:
+                ts = ts.replace("T", " ").replace("Z", "")[:16]
+            out.append({"title": title, "publisher": publisher or "—",
+                        "time": ts or "—", "url": url or "#",
+                        "tone": _news_tone(title)})
+    except Exception as e:
+        log.debug("fetch_news %s 失败: %s", code, e)
+        out = []
+    _cache_save(key, out)
+    return out
+
+
+def fetch_options_summary(code: str) -> dict:
+    """最近到期日的期权链概览: Put/Call 持仓比与成交比 / 最大痛点价 / 总持仓。"""
+    key = _cache_key("opts", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, dict) else {}
+    out = {}
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        exps = _retry(lambda: tk.options)
+        if exps:
+            exp = exps[0]
+            ch = _retry(tk.option_chain, exp)
+            calls, puts = ch.calls, ch.puts
+            c_oi = float(calls["openInterest"].fillna(0).sum())
+            p_oi = float(puts["openInterest"].fillna(0).sum())
+            c_vol = float(calls["volume"].fillna(0).sum())
+            p_vol = float(puts["volume"].fillna(0).sum())
+            # 最大痛点: 令期权买方总收益最小的到期价
+            strikes = sorted(set(calls["strike"]) | set(puts["strike"]))
+            best_p, best_pain = None, None
+            cs = calls[["strike", "openInterest"]].fillna(0).values
+            ps = puts[["strike", "openInterest"]].fillna(0).values
+            for s in strikes:
+                pain = float(sum(oi * max(0.0, s - k) for k, oi in cs)
+                             + sum(oi * max(0.0, k - s) for k, oi in ps))
+                if best_pain is None or pain < best_pain:
+                    best_pain, best_p = pain, s
+            out = {"expiry": str(exp),
+                   "pc_oi": round(p_oi / c_oi, 2) if c_oi > 0 else None,
+                   "pc_vol": round(p_vol / c_vol, 2) if c_vol > 0 else None,
+                   "call_oi": int(c_oi), "put_oi": int(p_oi),
+                   "max_pain": best_p}
+    except Exception as e:
+        log.debug("fetch_options_summary %s 失败: %s", code, e)
+        out = {}
+    _cache_save(key, out)
+    return out
+
+
+def fetch_finra_short_volume() -> dict:
+    """FINRA RegSHO 日度场外(含暗池)成交数据 — 全市场一个文件。
+    返回 {ticker: {"short_pct": 空头成交占比%, "date": 数据日}}。
+    这是公开数据里最接近"暗池情绪"的代理指标 (逐笔暗池数据无免费源)。"""
+    key = _cache_key("finrasv", dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, dict) else {}
+    import requests
+    out = {}
+    for back in range(1, 8):          # 从昨天起往回找最近一个交易日文件
+        d = dt.date.today() - dt.timedelta(days=back)
+        url = f"https://cdn.finra.org/equity/regsho/daily/CNMSshvol{d:%Y%m%d}.txt"
+        try:
+            r = _retry(requests.get, url, headers=_UA,
+                       timeout=CONFIG["fetch"]["timeout_sec"])
+            if r.status_code != 200 or "|" not in r.text[:200]:
+                continue
+            for line in r.text.splitlines()[1:]:
+                p = line.split("|")
+                if len(p) < 5:
+                    continue
+                try:
+                    sv, tv = float(p[2]), float(p[4])
+                except Exception:
+                    continue
+                if tv > 0:
+                    out[p[1]] = {"short_pct": round(sv / tv * 100.0, 1),
+                                 "date": f"{d:%Y-%m-%d}"}
+            break
+        except Exception as e:
+            log.debug("FINRA %s 失败: %s", url, e)
+            continue
+    _cache_save(key, out)
+    return out
+
+
+# ===========================================================================
 #  4) 板块指数 (SPDR 行业 ETF) / 基准 (SPY)
 # ===========================================================================
 def fetch_sector_hist(sector: str) -> pd.DataFrame | None:

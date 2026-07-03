@@ -53,6 +53,21 @@
   .miniStat{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:6px 12px; font-size:13px; }
   .segbtn{ padding:4px 12px; border-radius:8px; border:1px solid var(--inputborder); background:var(--input); color:var(--dim); font-size:13px; cursor:pointer; }
   .segbtn.on{ background:#0ea5e9; color:#fff; border-color:#0ea5e9; }
+  /* ---- 详情抽屉 分页签 & 版式 ---- */
+  .sec-title{ font-size:15px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:8px; }
+  .sec-title::before{ content:""; width:3px; height:14px; border-radius:2px; background:#38bdf8; flex:none; }
+  .dtab{ animation:fadein .18s ease; }
+  @keyframes fadein{ from{opacity:.35} to{opacity:1} }
+  .newsrow{ display:flex; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); align-items:flex-start; }
+  .newsrow:last-child{ border-bottom:none; }
+  .newsrow:hover{ background:var(--rowhover); }
+  .kv{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed var(--gridline); font-size:13px; }
+  .kv:last-child{ border-bottom:none; }
+  .meterbg{ background:var(--gridline); border-radius:4px; height:6px; flex:1; }
+  .meterfill{ height:100%; border-radius:4px; }
+  .note-warn{ border-left:3px solid #f59e0b; background:rgba(245,158,11,.07); }
+  .note-good{ border-left:3px solid #22c55e; background:rgba(34,197,94,.07); }
+  .note-info{ border-left:3px solid #64748b; background:rgba(148,163,184,.08); }
   @media (max-width:640px){ th,td{ padding:6px 6px; font-size:12px; } }
 </style>
 </head>
@@ -161,34 +176,94 @@
 
 <!-- 个股详情抽屉 -->
 <div id="overlay" class="fixed inset-0 bg-black/60 hidden z-40"></div>
-<aside id="drawer" class="drawer fixed top-0 right-0 h-full w-full md:w-[62%] lg:w-[56%] border-l z-50 translate-x-full overflow-y-auto" style="background:var(--drawer);border-color:var(--border)">
+<aside id="drawer" class="drawer fixed top-0 right-0 h-full w-full md:w-[68%] lg:w-[60%] border-l z-50 translate-x-full overflow-y-auto" style="background:var(--drawer);border-color:var(--border)">
   <div class="p-5">
-    <div class="flex items-start justify-between mb-3">
+    <div class="flex items-start justify-between mb-2">
       <div>
         <h3 id="dTitle" class="text-xl font-bold text-white">—</h3>
         <div id="dSub" class="text-sm text-slate-400 mt-1">—</div>
       </div>
       <button id="closeDrawer" class="text-slate-400 hover:text-white text-2xl leading-none px-2">×</button>
     </div>
-    <div id="dConclusion" class="card p-3 text-[13px] leading-relaxed text-slate-200 mb-3"></div>
-    <div id="dChips" class="flex flex-wrap gap-2 mb-3"></div>
-    <!-- 风控 / 分析师 卡片 -->
-    <div id="dRisk" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2"></div>
-    <div id="dFib" class="text-xs text-slate-400 mb-3"></div>
-    <div id="detailChart" style="width:100%;height:640px;"></div>
-    <!-- TradingView 内嵌交互图 -->
-    <div class="mt-4">
-      <div class="flex items-center justify-between mb-2">
-        <h4 class="text-base font-semibold text-white">TradingView 交互图（实时）</h4>
-        <a id="tvLink" href="#" target="_blank" rel="noopener" class="text-sky-300 text-sm hover:underline">在 TradingView 打开概览页 ↗</a>
-      </div>
-      <div id="tvWrap" style="height:460px;border:1px solid var(--border);border-radius:12px;overflow:hidden;"></div>
+
+    <!-- 页签导航 -->
+    <div id="dTabs" class="flex gap-2 flex-wrap sticky top-0 z-10 py-2 mb-3" style="background:var(--drawer)">
+      <button class="segbtn on" data-tab="tabOv">总览</button>
+      <button class="segbtn" data-tab="tabCo">公司与业务</button>
+      <button class="segbtn" data-tab="tabCf">现金流与风险</button>
+      <button class="segbtn" data-tab="tabNw">消息与博弈</button>
     </div>
-    <h4 class="text-base font-semibold text-white mt-4 mb-2">基本面速览</h4>
-    <div id="dFund" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-      <div class="card p-3"><div class="text-sm text-slate-300 mb-2">估值历史分位</div><div id="dVal"></div></div>
-      <div class="card p-3"><div class="text-sm text-slate-300 mb-2">ROE 多年趋势</div><div id="dRoe" style="height:130px;"></div></div>
+
+    <!-- ① 总览 -->
+    <div id="tabOv" class="dtab">
+      <div id="dConclusion" class="card p-3 text-[13px] leading-relaxed text-slate-200 mb-3"></div>
+      <div id="dChips" class="flex flex-wrap gap-2 mb-3"></div>
+      <div id="dRisk" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2"></div>
+      <div id="dFib" class="text-xs text-slate-400 mb-3"></div>
+      <div id="detailChart" style="width:100%;height:600px;"></div>
+      <div class="mt-4">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="sec-title">TradingView 交互图（实时）</h4>
+          <a id="tvLink" href="#" target="_blank" rel="noopener" class="text-sky-300 text-sm hover:underline">在 TradingView 打开概览页 ↗</a>
+        </div>
+        <div id="tvWrap" style="height:440px;border:1px solid var(--border);border-radius:12px;overflow:hidden;"></div>
+      </div>
+      <h4 class="sec-title mt-5 mb-2">基本面速览</h4>
+      <div id="dFund" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 mb-2">
+        <div class="card p-3"><div class="text-sm text-slate-300 mb-2">估值分位</div><div id="dVal"></div></div>
+        <div class="card p-3"><div class="text-sm text-slate-300 mb-2">ROE 多年趋势</div><div id="dRoe" style="height:130px;"></div></div>
+      </div>
+    </div>
+
+    <!-- ② 公司与业务 -->
+    <div id="tabCo" class="dtab hidden">
+      <h4 class="sec-title mb-2">公司简介</h4>
+      <div id="dProfile" class="card p-4 mb-4"></div>
+      <h4 class="sec-title mb-2">管理层</h4>
+      <div id="dOfficers" class="card overflow-x-auto mb-1"></div>
+      <div class="text-xs text-slate-500 mb-4">注：员工薪酬满意度 / 人员流动率无免费公开数据源；此处展示员工总数与高管薪酬（来源 Yahoo Finance）。</div>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-2">
+        <div class="card p-4">
+          <h4 class="sec-title mb-1">营收流向拆解 <span id="dPieYear" class="text-xs text-slate-400 font-normal"></span></h4>
+          <div class="text-xs text-slate-500 mb-1">免费数据源无分部(segment)营收，此处按年报拆解“每1美元营收去了哪”；增速异常项会标注。</div>
+          <div id="dPieChart" style="height:270px"></div>
+          <div id="dPieNotes" class="text-xs mt-1 leading-relaxed"></div>
+        </div>
+        <div class="card p-4">
+          <h4 class="sec-title mb-1">营收增速</h4>
+          <div class="text-xs text-slate-500 mb-1">年度营收(柱) 与 同比增速(线)；下图为近8个季度营收。</div>
+          <div id="dRevChart" style="height:190px"></div>
+          <div id="dQRevChart" style="height:130px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 现金流与风险 -->
+    <div id="tabCf" class="dtab hidden">
+      <h4 class="sec-title mb-1">现金流分析 — 钱流向哪了</h4>
+      <div class="text-xs text-slate-500 mb-2">单位: 百万美元；收购/回购/分红/资本开支为流出(取绝对值展示)；虚线为净利润 —— 与经营现金流对比可判断盈利质量。</div>
+      <div class="card p-4 mb-3"><div id="dCashChart" style="height:300px"></div></div>
+      <div id="dCashNotes" class="space-y-2 mb-4"></div>
+      <h4 class="sec-title mb-2">风险分析</h4>
+      <div id="dRiskPanel" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4"></div>
+      <h4 class="sec-title mb-2">政策分析 <span class="text-xs text-slate-400 font-normal">板块级要点 · 静态梳理 · 非实时</span></h4>
+      <div id="dPolicy" class="card p-4 mb-2"></div>
+    </div>
+
+    <!-- ④ 消息与博弈 -->
+    <div id="tabNw" class="dtab hidden">
+      <div class="flex items-center justify-between mb-1">
+        <h4 class="sec-title">利好 vs 利空 · 近期新闻</h4>
+        <span id="dNewsSum" class="text-sm"></span>
+      </div>
+      <div class="text-xs text-slate-500 mb-2">标题关键词粗分类，仅供快速浏览；点击标题打开原文。</div>
+      <div id="dNewsList" class="card mb-4"></div>
+      <h4 class="sec-title mb-2">期权博弈 <span id="dOptExp" class="text-xs text-slate-400 font-normal"></span></h4>
+      <div id="dOpts" class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-1"></div>
+      <div id="dOptNote" class="text-xs text-slate-400 mb-4 leading-relaxed"></div>
+      <h4 class="sec-title mb-2">暗池 / 场外交易</h4>
+      <div id="dDark" class="card p-4 mb-2"></div>
     </div>
   </div>
 </aside>
@@ -568,6 +643,244 @@
 
   // ---------- 个股详情 ----------
   let detailChart=null, roeChart=null;
+  let curC=null, curP=null;                       // 当前打开的候选 + 深度档案
+  const profCharts={};                             // 页签内图表实例
+  function pcInit(sel, key){
+    if(profCharts[key]){ profCharts[key].dispose(); profCharts[key]=null; }
+    const el=$(sel); el.innerHTML="";
+    const ch=echarts.init(el, ec());
+    profCharts[key]=ch; return ch;
+  }
+  function disposeProf(){ Object.keys(profCharts).forEach(k=>{ if(profCharts[k]){ profCharts[k].dispose(); profCharts[k]=null; } }); }
+  function fm(v){ if(!isNum(v)) return dash; const a=Math.abs(v), s=v<0?"-":""; return a>=1000? `${s}$${(a/1000).toFixed(1)}B` : `${s}$${a.toFixed(0)}M`; }
+  const escH = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+  // 板块政策要点 (静态梳理, 每季度人工复核一次)
+  const POLICY={
+    "Information Technology":["对华出口管制与芯片法案(CHIPS)补贴走向, 直接影响半导体订单与资本开支","AI 监管与数据隐私立法(欧盟AI法案/各州隐私法)抬高合规成本","反垄断审查聚焦平台经济与大型并购, 交易落地不确定性高"],
+    "Health Care":["IRA 药价谈判扩围, 压制大药企长期定价权","FDA 审批节奏与医保(CMS)支付政策决定创新药/器械放量速度","医保控费与 PBM 改革影响药品分销与健康险利润率"],
+    "Financials":["联储利率路径决定净息差与债券浮亏修复节奏","巴塞尔III最终规则(资本要求)影响大行分红回购能力","消费者金融保护与刷卡费率监管压制手续费收入"],
+    "Consumer Discretionary":["关税与供应链回流推高进口零售成本","最低工资与工会谈判抬升人力成本","消费信贷监管与还款压力影响可支配支出"],
+    "Communication Services":["内容监管(Section 230)改革悬而未决","广告隐私新规(第三方Cookie退场)重塑数字广告定价","流媒体版权与体育转播竞价持续推高内容成本"],
+    "Industrials":["基建法案与制造业回流补贴带来多年订单可见性","国防预算周期决定军工企业现金流","排放标准趋严迫使机队/设备更新(利好新机销售)"],
+    "Consumer Staples":["食品安全与添加剂监管(叠加GLP-1对零食需求的预期冲击)","关税影响进口原材料成本","零售渠道集中度提升, 压缩品牌方议价权"],
+    "Energy":["钻探许可政策与甲烷排放费影响上游成本","清洁能源补贴(IRA)分流传统能源长期资本","地缘政治与 OPEC+ 决定油价中枢"],
+    "Utilities":["利率敏感: 高利率抬升重资产行业融资成本","数据中心用电需求爆发带来费率基数增长机会","清洁能源转型的强制资本开支, 监管批准的ROE是关键变量"],
+    "Real Estate":["利率与再融资墙: 商业地产贷款到期高峰是系统性风险点","远程办公对办公类资产的结构性冲击仍在消化","数据中心/物流REIT受AI与电商需求带动"],
+    "Materials":["关税与反倾销税直接影响金属/化工品定价","环保审批放缓新增产能(利好存量产能盈利)","新能源金属需求随补贴政策摆动"],
+    "_default":["关注关税与贸易政策对成本端的影响","关注利率路径对估值与融资成本的影响","关注行业专项监管与补贴政策的边际变化"]};
+
+  // ---- 页签切换 (懒渲染: 切到哪个页签才画哪个的图) ----
+  function switchTab(id){
+    document.querySelectorAll('#dTabs .segbtn').forEach(b=>b.classList.toggle('on', b.dataset.tab===id));
+    document.querySelectorAll('.dtab').forEach(d=>d.classList.toggle('hidden', d.id!==id));
+    if(id==="tabOv"){ if(detailChart) setTimeout(()=>detailChart.resize(),40); return; }
+    if(id==="tabCo") renderCoTab();
+    else if(id==="tabCf") renderCfTab();
+    else if(id==="tabNw") renderNwTab();
+  }
+  document.querySelectorAll('#dTabs .segbtn').forEach(b=>{ b.onclick=()=>switchTab(b.dataset.tab); });
+  const NOPROF='<div class="p-3 text-slate-500 text-sm">该标的暂无深度档案（档案每日仅为最终候选生成，且部分标的无年报数据）。</div>';
+
+  // ---- ② 公司与业务 ----
+  function renderCoTab(){
+    const c=curC, p=curP;
+    if(!p){ $("#dProfile").innerHTML=NOPROF; $("#dOfficers").innerHTML="";
+      $("#dPieNotes").innerHTML=""; $("#dPieYear").textContent="";
+      ["#dPieChart","#dRevChart","#dQRevChart"].forEach(s=>$(s).innerHTML="");
+      return; }
+    const meta=[];
+    if(p.hq) meta.push("总部 "+escH(p.hq));
+    if(isNum(p.employees)) meta.push("员工 "+p.employees.toLocaleString()+" 人");
+    if(p.sector) meta.push(escH(p.sector));
+    $("#dProfile").innerHTML =
+      `<div class="text-[13px] leading-relaxed text-slate-200 mb-2" style="max-height:150px;overflow-y:auto">${p.summary?escH(p.summary):"暂无业务简介"}</div>`+
+      `<div class="text-xs text-slate-400">${meta.join(" · ")}${p.website?` · <a class="text-sky-300 hover:underline" target="_blank" rel="noopener" href="${escH(p.website)}">官网 ↗</a>`:""}</div>`;
+    if(p.officers && p.officers.length){
+      $("#dOfficers").innerHTML =
+        `<table class="w-full"><thead><tr><th class="text-left">姓名</th><th class="text-left">职务</th><th class="text-right">年龄</th><th class="text-right">年薪(百万$)</th></tr></thead><tbody>`+
+        p.officers.map(o=>`<tr><td class="text-white">${escH(o.name)}</td><td class="text-slate-300">${escH(o.title)}</td><td class="num">${o.age!=null?o.age:dash}</td><td class="num">${isNum(o.pay_m)?o.pay_m.toFixed(2):dash}</td></tr>`).join("")+
+        `</tbody></table>`;
+    } else { $("#dOfficers").innerHTML='<div class="p-3 text-slate-500 text-sm">暂无管理层数据</div>'; }
+    drawPie(p); drawRevCharts(p);
+  }
+
+  function drawPie(p){
+    const r=p.revenue, C=tc();
+    $("#dPieNotes").innerHTML=""; $("#dPieYear").textContent="";
+    if(!hasECharts || !r || !r.cost_items || !r.cost_items.length){
+      $("#dPieChart").innerHTML='<div class="text-slate-500 text-sm p-3">暂无年报成本结构数据</div>'; return; }
+    $("#dPieYear").textContent = `${r.cost_year}财年 · 总营收 ${fm(r.cost_total)}`;
+    const PAL=["#64748b","#38bdf8","#c084fc","#f59e0b","#34d399","#94a3b8"];
+    const data=r.cost_items.map((x,i)=>({name:x.name, value:x.value, itemStyle:{color:PAL[i%PAL.length]}}));
+    const yoyMap={}; r.cost_items.forEach(x=>yoyMap[x.name]=x.yoy);
+    const ch=pcInit("#dPieChart","pie");
+    ch.setOption({backgroundColor:"transparent",
+      tooltip:{formatter:pr=>{const y=yoyMap[pr.name];
+        return `<b>${pr.name}</b><br/>${fm(pr.value)} · 占营收 ${(pr.value/r.cost_total*100).toFixed(1)}%`+(isNum(y)?`<br/>同比 ${y>0?"+":""}${y}%`:"");}},
+      legend:{bottom:0,textStyle:{color:C.label,fontSize:11}},
+      series:[{type:"pie",radius:["38%","66%"],center:["50%","44%"],
+        label:{color:C.label,fontSize:11,formatter:pr=>`${pr.name}\n${(pr.value/r.cost_total*100).toFixed(0)}%`},
+        itemStyle:{borderColor:(document.body.classList.contains("light")?"#fff":"#111a2e"),borderWidth:2}, data}]});
+    // 增速异常标注
+    const revYoY=(r.rev_yoy||[]).filter(isNum).slice(-1)[0];
+    const notes=[];
+    r.cost_items.forEach(x=>{
+      if(!isNum(x.yoy)||!isNum(revYoY)) return;
+      if(x.name==="净利润" && x.yoy>revYoY+10) notes.push(`<span style="color:#4ade80">✦ 净利润同比 +${x.yoy}%，显著快于营收(+${revYoY}%) —— 利润率在改善</span>`);
+      else if(x.name==="研发投入" && x.yoy>revYoY+10) notes.push(`<span style="color:#38bdf8">✦ 研发投入同比 +${x.yoy}%，远超营收增速 —— 加码投入期</span>`);
+      else if(x.name!=="净利润" && x.yoy>revYoY+10) notes.push(`<span style="color:#fbbf24">⚠ ${x.name}同比 +${x.yoy}%，明显快于营收(+${revYoY}%) —— 正在侵蚀利润率</span>`);
+      else if(x.name==="净利润" && x.yoy<revYoY-15) notes.push(`<span style="color:#f87171">⚠ 净利润同比 ${x.yoy>0?"+":""}${x.yoy}%，大幅落后营收(+${revYoY}%) —— 增收不增利</span>`);
+    });
+    $("#dPieNotes").innerHTML=notes.join("<br/>");
+  }
+
+  function drawRevCharts(p){
+    const r=p.revenue, C=tc();
+    if(!hasECharts || !r || !r.years || !r.years.length){
+      $("#dRevChart").innerHTML='<div class="text-slate-500 text-sm p-3">暂无营收数据</div>'; $("#dQRevChart").innerHTML=""; return; }
+    const ch=pcInit("#dRevChart","rev");
+    ch.setOption({backgroundColor:"transparent", grid:{left:56,right:46,top:22,bottom:20},
+      tooltip:{trigger:"axis"},
+      legend:{top:0,textStyle:{color:C.label,fontSize:11},data:["年度营收","同比增速"]},
+      xAxis:{type:"category",data:r.years,axisLabel:{color:C.axis,fontSize:10}},
+      yAxis:[{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>v>=1000?(v/1000)+"B":v+"M"},splitLine:{lineStyle:{color:C.grid}}},
+             {type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:"{value}%"},splitLine:{show:false}}],
+      series:[{name:"年度营收",type:"bar",data:r.revenue,barWidth:"45%",itemStyle:{color:"#38bdf8",borderRadius:[3,3,0,0]}},
+              {name:"同比增速",type:"line",yAxisIndex:1,data:r.rev_yoy,connectNulls:true,
+               lineStyle:{color:"#fbbf24",width:2},itemStyle:{color:"#fbbf24"},
+               label:{show:true,color:"#fbbf24",fontSize:10,formatter:pr=>isNum(pr.value)?(pr.value>0?"+":"")+pr.value+"%":""}}]});
+    if(r.quarters && r.quarters.length){
+      const qc=pcInit("#dQRevChart","qrev");
+      qc.setOption({backgroundColor:"transparent", grid:{left:56,right:46,top:8,bottom:20},
+        tooltip:{trigger:"axis"},
+        xAxis:{type:"category",data:r.quarters,axisLabel:{color:C.axis,fontSize:9}},
+        yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:9,formatter:v=>v>=1000?(v/1000)+"B":v+"M"},splitLine:{lineStyle:{color:C.grid}}},
+        series:[{type:"bar",data:r.q_revenue,barWidth:"55%",itemStyle:{color:"#34d399",borderRadius:[2,2,0,0]}}]});
+    } else { $("#dQRevChart").innerHTML=""; }
+  }
+
+  // ---- ③ 现金流与风险 ----
+  function renderCfTab(){
+    const c=curC, p=curP, C=tc();
+    if(!p || !p.cashflow || !p.cashflow.years){
+      $("#dCashChart").innerHTML='<div class="text-slate-500 text-sm p-3">暂无现金流数据</div>';
+      $("#dCashNotes").innerHTML=""; renderRiskPanel(); renderPolicy(); return; }
+    const cf=p.cashflow;
+    const A=arr=>(arr||[]).map(v=>v==null?null:Math.abs(v));
+    const ch=pcInit("#dCashChart","cash");
+    ch.setOption({backgroundColor:"transparent", grid:{left:64,right:20,top:44,bottom:22},
+      tooltip:{trigger:"axis", valueFormatter:v=>isNum(v)?fm(v):dash},
+      legend:{top:0,textStyle:{color:C.label,fontSize:11}},
+      xAxis:{type:"category",data:cf.years,axisLabel:{color:C.axis}},
+      yAxis:{type:"value",axisLabel:{color:C.axis,fontSize:10,formatter:v=>Math.abs(v)>=1000?(v/1000)+"B":v+"M"},splitLine:{lineStyle:{color:C.grid}}},
+      series:[
+        {name:"经营现金流",type:"bar",data:cf.ocf,itemStyle:{color:"#38bdf8"}},
+        {name:"自由现金流",type:"bar",data:cf.fcf,itemStyle:{color:"#34d399"}},
+        {name:"资本开支",type:"bar",data:A(cf.capex),itemStyle:{color:"#94a3b8"}},
+        {name:"收购",type:"bar",data:A(cf.acq),itemStyle:{color:"#f59e0b"}},
+        {name:"回购",type:"bar",data:A(cf.buyback),itemStyle:{color:"#c084fc"}},
+        {name:"分红",type:"bar",data:A(cf.dividend),itemStyle:{color:"#f472b6"}},
+        {name:"净利润",type:"line",data:cf.net_income,lineStyle:{color:"#fbbf24",width:2,type:"dashed"},itemStyle:{color:"#fbbf24"}},
+      ]});
+    $("#dCashNotes").innerHTML=(p.cash_notes||[]).map(n=>
+      `<div class="note-${n.level} p-2 rounded text-[13px] text-slate-200">${escH(n.text)}</div>`).join("")
+      || '<div class="text-slate-500 text-sm">暂无自动要点</div>';
+    renderRiskPanel(); renderPolicy();
+  }
+
+  function renderRiskPanel(){
+    const c=curC, p=curP;
+    const g=(p||{}).governance||{}, s=(p||{}).short||{}, dp=(p||{}).darkpool;
+    const gRow=(lab,v)=>{
+      if(!isNum(v)) return `<div class="kv"><span class="text-slate-400">${lab}</span><span>${dash}</span></div>`;
+      const col=v<=3?"#22c55e":(v<=6?"#f59e0b":"#ef4444");
+      return `<div class="flex items-center gap-2 py-1.5 text-[13px]"><span class="text-slate-400 w-20 flex-none">${lab}</span>
+        <div class="meterbg"><div class="meterfill" style="width:${v*10}%;background:${col}"></div></div>
+        <span class="w-8 text-right" style="color:${col}">${v}/10</span></div>`;
+    };
+    const kv=(lab,val)=>`<div class="kv"><span class="text-slate-400">${lab}</span><span class="text-slate-100">${val}</span></div>`;
+    const warns=[];
+    if(isNum(s.pct_float)&&s.pct_float>10) warns.push("⚠ 做空占流通盘 "+s.pct_float+"%，空头拥挤(逼空与下跌风险并存)");
+    if(isNum(s.days_to_cover)&&s.days_to_cover>5) warns.push("⚠ 空头回补需 "+s.days_to_cover.toFixed(1)+" 天，波动可能被放大");
+    if(isNum(s.current_ratio)&&s.current_ratio<1) warns.push("⚠ 流动比率 "+s.current_ratio.toFixed(2)+" < 1，短期偿债压力");
+    if(isNum(s.debt_to_equity)&&s.debt_to_equity>150) warns.push("⚠ 负债/权益 "+s.debt_to_equity.toFixed(0)+"%，高杠杆");
+    if(isNum(g.overall)&&g.overall>=7) warns.push("⚠ ISS 综合治理风险 "+g.overall+"/10，公司治理需重点核查");
+    if(isNum(c.max_dd_pct)&&c.max_dd_pct<=-45) warns.push("⚠ 近一年最大回撤 "+c.max_dd_pct.toFixed(0)+"%，左侧接刀风险高");
+    $("#dRiskPanel").innerHTML=
+      `<div class="card p-4"><div class="text-sm text-slate-300 mb-2">公司治理风险 <span class="text-xs text-slate-500">(ISS评分, 10=风险最高)</span></div>
+        ${gRow("审计",g.audit)}${gRow("董事会",g.board)}${gRow("高管薪酬",g.compensation)}${gRow("股东权利",g.shareholder)}${gRow("综合",g.overall)}</div>`+
+      `<div class="card p-4"><div class="text-sm text-slate-300 mb-2">交易与偿债</div>
+        ${kv("做空占流通盘", isNum(s.pct_float)?s.pct_float+"%":dash)}
+        ${kv("空头回补天数", isNum(s.days_to_cover)?s.days_to_cover.toFixed(1)+" 天":dash)}
+        ${kv("机构持仓", isNum(s.inst_held_pct)?s.inst_held_pct+"%":dash)}
+        ${kv("流动比率", isNum(s.current_ratio)?s.current_ratio.toFixed(2):dash)}
+        ${kv("负债/权益", isNum(s.debt_to_equity)?s.debt_to_equity.toFixed(0)+"%":dash)}
+        ${kv("Beta / 日波动ATR", (isNum(c.beta)?c.beta.toFixed(2):dash)+" / "+(isNum(c.atr_pct)?c.atr_pct.toFixed(1)+"%":dash))}
+        ${kv("近1年最大回撤", isNum(c.max_dd_pct)?c.max_dd_pct.toFixed(1)+"%":dash)}
+        ${kv("场外空头成交占比", dp&&isNum(dp.short_pct)?dp.short_pct+"%":dash)}
+        ${warns.length?`<div class="mt-2 space-y-1">${warns.map(w=>`<div class="note-warn p-2 rounded text-xs text-slate-200">${w}</div>`).join("")}</div>`:""}</div>`;
+  }
+
+  function renderPolicy(){
+    const sec=(curP&&curP.sector)||curC.industry;
+    const items=POLICY[sec]||POLICY._default;
+    $("#dPolicy").innerHTML=
+      `<div class="text-xs text-slate-400 mb-2">${sec?escH(sec)+" 板块":"通用"} · 要点为板块级静态梳理，请结合最新新闻核实</div>`+
+      `<ul class="space-y-1.5">${items.map(t=>`<li class="text-[13px] text-slate-200 flex gap-2"><span class="text-sky-400 flex-none">▸</span><span>${t}</span></li>`).join("")}</ul>`;
+  }
+
+  // ---- ④ 消息与博弈 ----
+  function renderNwTab(){
+    const c=curC, p=curP;
+    if(!p){ $("#dNewsList").innerHTML=NOPROF; $("#dNewsSum").innerHTML="";
+      $("#dOpts").innerHTML=""; $("#dOptNote").textContent=""; $("#dOptExp").textContent="";
+      $("#dDark").innerHTML=NOPROF; return; }
+    const news=p.news||[];
+    const nPos=news.filter(n=>n.tone==="利好").length, nNeg=news.filter(n=>n.tone==="利空").length;
+    $("#dNewsSum").innerHTML=`<span class="badge tag-strong">利好 ${nPos}</span> <span class="badge tag-warn">利空 ${nNeg}</span> <span class="badge tag-watch">中性 ${news.length-nPos-nNeg}</span>`;
+    const toneCls={"利好":"tag-strong","利空":"tag-warn","中性":"tag-watch"};
+    $("#dNewsList").innerHTML = news.length? news.map(n=>
+      `<div class="newsrow"><span class="badge ${toneCls[n.tone]} flex-none">${n.tone}</span>
+        <div class="min-w-0"><a href="${escH(n.url)}" target="_blank" rel="noopener" class="text-[13px] text-slate-100 hover:text-sky-300 hover:underline">${escH(n.title)}</a>
+        <div class="text-xs text-slate-500 mt-0.5">${escH(n.publisher)} · ${escH(n.time)}</div></div></div>`).join("")
+      : '<div class="p-3 text-slate-500 text-sm">暂无新闻</div>';
+
+    const o=p.options;
+    const oc=(lab,val,col)=>`<div class="card p-2.5"><div class="text-[11px] text-slate-400">${lab}</div><div class="text-base font-semibold mt-0.5" style="color:${col||"var(--text)"}">${val}</div></div>`;
+    if(o && (isNum(o.pc_oi)||isNum(o.max_pain))){
+      $("#dOptExp").textContent="最近到期 "+(o.expiry||dash);
+      const pcCol=v=>!isNum(v)?"":(v>1.15?"#f87171":(v<0.75?"#4ade80":"#e5e7eb"));
+      const mpDiff=(isNum(o.max_pain)&&isNum(c.price))?((o.max_pain/c.price-1)*100):null;
+      $("#dOpts").innerHTML=
+        oc("Put/Call 持仓比", isNum(o.pc_oi)?o.pc_oi.toFixed(2):dash, pcCol(o.pc_oi))+
+        oc("Put/Call 成交比", isNum(o.pc_vol)?o.pc_vol.toFixed(2):dash, pcCol(o.pc_vol))+
+        oc("最大痛点价", isNum(o.max_pain)?"$"+o.max_pain+(isNum(mpDiff)?` (${mpDiff>0?"+":""}${mpDiff.toFixed(1)}%)`:""):dash, "#38bdf8")+
+        oc("Call 持仓", isNum(o.call_oi)?o.call_oi.toLocaleString():dash)+
+        oc("Put 持仓", isNum(o.put_oi)?o.put_oi.toLocaleString():dash);
+      const hints=[];
+      if(isNum(o.pc_oi)) hints.push(o.pc_oi>1.15?"Put持仓明显多于Call —— 期权市场防御/看跌仓位偏重":(o.pc_oi<0.75?"Call持仓明显多于Put —— 期权市场偏多头博弈":"Put/Call持仓大致均衡"));
+      if(isNum(mpDiff)) hints.push(`最大痛点$${o.max_pain}${Math.abs(mpDiff)<3?"贴近现价, 到期前价格易被钉在附近":(mpDiff>0?"高于现价"+mpDiff.toFixed(1)+"%, 期权结构对价格有向上牵引":"低于现价"+Math.abs(mpDiff).toFixed(1)+"%, 期权结构对价格有向下牵引")}`);
+      $("#dOptNote").textContent="解读: "+hints.join("；")+"。(仅最近到期合约, 样本小时参考意义有限)";
+    } else {
+      $("#dOptExp").textContent="";
+      $("#dOpts").innerHTML='<div class="col-span-full text-slate-500 text-sm p-1">暂无期权数据(可能无期权上市)</div>';
+      $("#dOptNote").textContent="";
+    }
+
+    const dp=p.darkpool, sPct=(p.short||{}).pct_float;
+    if(dp&&isNum(dp.short_pct)){
+      const col=dp.short_pct>=55?"#f87171":(dp.short_pct>=45?"#fbbf24":"#4ade80");
+      $("#dDark").innerHTML=
+        `<div class="flex items-center gap-6 flex-wrap">
+          <div><div class="text-xs text-slate-400">场外(含暗池)空头成交占比 <span class="text-slate-500">${escH(dp.date)}</span></div>
+            <div class="text-3xl font-bold mt-1" style="color:${col}">${dp.short_pct}%</div></div>
+          <div class="text-xs text-slate-400 leading-relaxed max-w-md">来源 FINRA RegSHO 日度数据 —— 公开数据中最接近"暗池情绪"的代理指标(逐笔暗池数据无免费源)。
+          该值≈50%为中性(做市商双边报价所致)；持续>55%多头需谨慎，<45%卖压相对较轻。${isNum(sPct)?`当前做空占流通盘 ${sPct}%。`:""}</div>
+        </div>`;
+    } else { $("#dDark").innerHTML='<div class="text-slate-500 text-sm">暂无 FINRA 场外数据</div>'; }
+  }
+
   function mountTV(code){
     const theme = document.body.classList.contains("light")?"light":"dark";
     const sym = encodeURIComponent(code||"");
@@ -576,6 +889,10 @@
     $("#tvLink").href = `https://www.tradingview.com/symbols/${sym}/`;
   }
   function openDetail(c){
+    curC = c; curP = (DATA.profiles||{})[c.code] || null;
+    disposeProf();
+    switchTab("tabOv");
+    $("#drawer").scrollTop = 0;
     $("#dTitle").innerHTML = `${c.name||""} <a href="https://www.tradingview.com/symbols/${encodeURIComponent(c.code||"")}/" target="_blank" rel="noopener" class="text-sky-300 font-mono text-base hover:underline" title="在 TradingView 打开概览页">${c.code||""} ↗</a> <span class="badge ${tagClass(c.tag)} ml-2">${c.tag||""}</span>`;
     $("#dSub").textContent = `${c.industry||"—"} · 现价 $${f(c.price)} · 综合分 ${f(getVal(c,"final_score"),1)}（技术 ${f(c.tech_score,2)} / 基本面 ${f(c.fund_score,0)} / 景气 ${f(c.prosperity_score,0)}）`;
     $("#dConclusion").textContent = c.conclusion || "—";
@@ -731,6 +1048,7 @@
     $("#tvWrap").innerHTML="";   // 停止 TradingView iframe
     if(detailChart){ detailChart.dispose(); detailChart=null; }
     if(roeChart){ roeChart.dispose(); roeChart=null; }
+    disposeProf();
   }
   $("#closeDrawer").onclick=closeDrawer;
   $("#overlay").onclick=closeDrawer;

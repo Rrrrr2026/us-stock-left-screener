@@ -23,6 +23,7 @@ from screener import module1_industry as m1
 from screener import module2_tech as m2
 from screener import module3_fundamentals as m3
 from screener import module4_crossscore as m4
+from screener import module6_profile as m6
 from screener import export_data as ex
 
 for _s in (sys.stdout, sys.stderr):
@@ -171,6 +172,25 @@ def run(use_cache=True):
         final_records.append(fr)
         if idx < detail_n and detail:
             db.save_detail(run_date, rec["code"], detail)
+
+    # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 仅最终候选 ----
+    show_n = CONFIG["output"]["final_top_n"]
+    prof_targets = final_records[:show_n]
+    log.info("阶段C 深度档案: %d 只 (现金流/营收/新闻/期权/FINRA) ...", len(prof_targets))
+    finra_map = ds.fetch_finra_short_volume()
+    log.info("  FINRA 场外空头数据: %d 只", len(finra_map))
+
+    def _prof(fr):
+        p = m6.pull_profile(fr["code"], sector=fr.get("industry"), short_map=finra_map)
+        db.save_profile(run_date, fr["code"], p)
+
+    with ThreadPoolExecutor(max_workers=fund_workers) as pool:
+        futs = [pool.submit(_prof, fr) for fr in prof_targets]
+        for fut in tqdm(as_completed(futs), total=len(futs)):
+            try:
+                fut.result()
+            except Exception as e:
+                log.debug("深度档案失败: %s", e)
 
     finished = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     db.log_run(run_date, started, finished, n_scanned, len(final_records), selected, "ok")
