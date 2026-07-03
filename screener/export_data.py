@@ -162,7 +162,7 @@ def write_csv(run_date: str | None = None) -> str:
         wtr = csv.writer(f)
         wtr.writerow(headers)
         for r in payload["candidates"]:
-            wtr.writerow(["—" if r.get(k) in (None, "") else r.get(k) for k in keys])
+            wtr.writerow(["" if k == "spark" else ("—" if r.get(k) in (None, "") else r.get(k)) for k in keys])
     log.info("CSV 已导出: %s", path)
     return path
 
