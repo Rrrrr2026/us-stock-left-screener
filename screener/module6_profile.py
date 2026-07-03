@@ -147,9 +147,13 @@ def pull_profile(code: str, sector: str | None = None,
         "shareholder": info.get("shareHolderRightsRisk"),
         "overall": info.get("overallRisk"),
     }
+    # yfinance 的 shortPercentOfFloat 是小数(1.05=流通盘的105%, 逼空股会>1);
+    # 仅当离谱地大(>5, 即500%)才视为已是百分数
     spf = _num(info.get("shortPercentOfFloat"))
+    if spf is not None:
+        spf = round(spf * 100.0, 2) if spf <= 5 else round(spf, 2)
     p["short"] = {
-        "pct_float": round(spf * 100.0, 2) if spf is not None and spf < 1 else spf,
+        "pct_float": spf,
         "days_to_cover": _num(info.get("shortRatio")),
         "inst_held_pct": round(_num(info.get("heldPercentInstitutions")) * 100.0, 1)
         if _num(info.get("heldPercentInstitutions")) is not None else None,
@@ -166,6 +170,7 @@ def pull_profile(code: str, sector: str | None = None,
     p["options"] = ds.fetch_options_summary(code) or None
 
     # ---- FINRA 场外(含暗池)空头成交占比 ----
+    # FINRA 对双类股用斜杠 (BRK/B), 股票池用点 (BRK.B) — 两种写法都查
     if short_map:
-        p["darkpool"] = short_map.get(code)
+        p["darkpool"] = short_map.get(code) or short_map.get(code.replace(".", "/"))
     return p

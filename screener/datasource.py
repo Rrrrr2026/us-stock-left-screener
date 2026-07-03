@@ -13,6 +13,7 @@
 from __future__ import annotations
 import os
 import io
+import re
 import time
 import pickle
 import hashlib
@@ -362,7 +363,8 @@ def fetch_roe_trend(code: str) -> list:
     except Exception as e:
         log.debug("fetch_roe_trend %s 失败: %s", code, e)
         out = []
-    _cache_save(key, out)
+    if out:                    # 失败/空结果不缓存, 避免一次网络抖动污染当日所有重跑
+        _cache_save(key, out)
     return out
 
 
@@ -430,7 +432,8 @@ def fetch_cashflow(code: str) -> dict:
     except Exception as e:
         log.debug("fetch_cashflow %s 失败: %s", code, e)
         out = {}
-    _cache_save(key, out)
+    if out:
+        _cache_save(key, out)
     return out
 
 
@@ -438,7 +441,7 @@ def fetch_revenue_trend(code: str) -> dict:
     """营收增速(年度+季度, YoY) + 最近财年"营收流向"成本结构拆解
     (营业成本/研发/销售管理/税/净利, 各项含同比 — 用于饼图与增速标注)。
     注: 免费数据源无分部(business segment)营收, 以成本结构拆解替代。"""
-    key = _cache_key("revtrend", code, dt.date.today().isoformat())
+    key = _cache_key("revtrend2", code, dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
         return c if isinstance(c, dict) else {}
@@ -485,19 +488,21 @@ def fetch_revenue_trend(code: str) -> dict:
         if years and rev.get(years[-1]):
             y_now, y_prev = years[-1], str(int(years[-1]) - 1)
             total_now = rev[y_now]
-            comps, used = [], 0.0
+            comps, used_signed = [], 0.0
             for lab, names in items.items():
                 d = _row_by_year(_stmt_row(inc, names))
                 v_now, v_prev = d.get(y_now), d.get(y_prev)
                 if v_now is None:
                     continue
                 item_yoy = (round((v_now / v_prev - 1) * 100.0, 1)
-                            if (v_prev and v_prev > 0) else None)
-                comps.append({"name": lab, "value": abs(round(v_now, 1)), "yoy": item_yoy})
+                            if (v_prev and v_prev > 0 and v_now > 0) else None)
+                # 保留符号! 亏损/税收抵免为负值; 饼图只画正值项, 负值由前端注记
+                comps.append({"name": lab, "value": round(v_now, 1), "yoy": item_yoy})
                 if lab != "净利润":
-                    used += abs(v_now)
-            ni = next((x["value"] for x in comps if x["name"] == "净利润"), 0)
-            other = round(total_now - used - ni, 1)
+                    used_signed += v_now
+            ni_signed = next((x["value"] for x in comps if x["name"] == "净利润"), 0.0)
+            # 带符号恒等式: 其他 = 营收 - Σ成本(带符号) - 净利润 (亏损为负 => 自动加回)
+            other = round(total_now - used_signed - ni_signed, 1)
             if other > total_now * 0.01:
                 comps.append({"name": "其他费用/摊销", "value": other, "yoy": None})
             out["cost_year"] = y_now
@@ -506,7 +511,8 @@ def fetch_revenue_trend(code: str) -> dict:
     except Exception as e:
         log.debug("fetch_revenue_trend %s 失败: %s", code, e)
         out = {}
-    _cache_save(key, out)
+    if out:
+        _cache_save(key, out)
     return out
 
 
@@ -522,10 +528,15 @@ _NEG_KW = ("miss", "misses", "downgrade", "cut", "cuts", "lawsuit", "sues", "pro
            "short seller", "guidance cut", "halts", "fined", "penalty")
 
 
+# 词边界匹配, 避免 'cut' 命中 'executive'、'miss' 命中 'commission' 之类的误判
+_POS_RE = [re.compile(r"\b" + re.escape(k.strip()) + r"\b") for k in _POS_KW]
+_NEG_RE = [re.compile(r"\b" + re.escape(k.strip()) + r"\b") for k in _NEG_KW]
+
+
 def _news_tone(title: str) -> str:
     t = (title or "").lower()
-    pos = sum(1 for k in _POS_KW if k in t)
-    neg = sum(1 for k in _NEG_KW if k in t)
+    pos = sum(1 for r in _POS_RE if r.search(t))
+    neg = sum(1 for r in _NEG_RE if r.search(t))
     if pos > neg:
         return "利好"
     if neg > pos:
@@ -535,7 +546,7 @@ def _news_tone(title: str) -> str:
 
 def fetch_news(code: str, limit: int = 12) -> list:
     """Yahoo 财经个股新闻 (标题/来源/时间/链接), 关键词法粗分 利好/利空/中性。"""
-    key = _cache_key("news", code, dt.date.today().isoformat())
+    key = _cache_key("news2", code, dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
         return c if isinstance(c, list) else []
@@ -572,7 +583,8 @@ def fetch_news(code: str, limit: int = 12) -> list:
     except Exception as e:
         log.debug("fetch_news %s 失败: %s", code, e)
         out = []
-    _cache_save(key, out)
+    if out:
+        _cache_save(key, out)
     return out
 
 
@@ -612,7 +624,8 @@ def fetch_options_summary(code: str) -> dict:
     except Exception as e:
         log.debug("fetch_options_summary %s 失败: %s", code, e)
         out = {}
-    _cache_save(key, out)
+    if out:
+        _cache_save(key, out)
     return out
 
 
@@ -649,7 +662,8 @@ def fetch_finra_short_volume() -> dict:
         except Exception as e:
             log.debug("FINRA %s 失败: %s", url, e)
             continue
-    _cache_save(key, out)
+    if out:
+        _cache_save(key, out)
     return out
 
 

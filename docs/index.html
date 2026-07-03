@@ -526,7 +526,7 @@
   function cellHTML(c, key){
     const v = (key==="final_score") ? getVal(c,key) : c[key];
     switch(key){
-      case "tag": return `<span class="badge ${tagClass(v)}">${v||dash}</span>`;
+      case "tag": return `<span class="badge ${tagClass(v)}">${v?escH(v):dash}</span>`;
       case "streak": return streakCell(c.streak);
       case "spark": return sparkSVG(c.spark);
       case "dist_support_pct": return supportCell(v);
@@ -543,8 +543,8 @@
       case "breakdown_price": case "pb": case "eps":
         return `<span class="num">${f(v,2)}</span>`;
       case "code": return `<a href="https://www.tradingview.com/symbols/${encodeURIComponent(v||"")}/" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="text-sky-300 font-mono hover:underline" title="在 TradingView 打开 ${v||""} 概览页">${v||dash} ↗</a>`;
-      case "name": return `<span class="text-white">${v||dash}</span>`;
-      default: return `<span>${(v==null||v==="")?dash:v}</span>`;
+      case "name": return `<span class="text-white">${v?escH(v):dash}</span>`;
+      default: return `<span>${(v==null||v==="")?dash:escH(v)}</span>`;
     }
   }
 
@@ -684,6 +684,7 @@
 
   // ---- ② 公司与业务 ----
   function renderCoTab(){
+    if(!curC) return;                       // 抽屉未打开过, 忽略
     const c=curC, p=curP;
     if(!p){ $("#dProfile").innerHTML=NOPROF; $("#dOfficers").innerHTML="";
       $("#dPieNotes").innerHTML=""; $("#dPieYear").textContent="";
@@ -712,7 +713,10 @@
       $("#dPieChart").innerHTML='<div class="text-slate-500 text-sm p-3">暂无年报成本结构数据</div>'; return; }
     $("#dPieYear").textContent = `${r.cost_year}财年 · 总营收 ${fm(r.cost_total)}`;
     const PAL=["#64748b","#38bdf8","#c084fc","#f59e0b","#34d399","#94a3b8"];
-    const data=r.cost_items.map((x,i)=>({name:x.name, value:x.value, itemStyle:{color:PAL[i%PAL.length]}}));
+    // 只画正值项; 负值(净亏损/税收抵免)不属于"营收的去向", 以文字注记
+    const posItems=r.cost_items.filter(x=>isNum(x.value)&&x.value>0);
+    const negItems=r.cost_items.filter(x=>isNum(x.value)&&x.value<0);
+    const data=posItems.map((x,i)=>({name:x.name, value:x.value, itemStyle:{color:PAL[i%PAL.length]}}));
     const yoyMap={}; r.cost_items.forEach(x=>yoyMap[x.name]=x.yoy);
     const ch=pcInit("#dPieChart","pie");
     ch.setOption({backgroundColor:"transparent",
@@ -722,14 +726,20 @@
       series:[{type:"pie",radius:["38%","66%"],center:["50%","44%"],
         label:{color:C.label,fontSize:11,formatter:pr=>`${pr.name}\n${(pr.value/r.cost_total*100).toFixed(0)}%`},
         itemStyle:{borderColor:(document.body.classList.contains("light")?"#fff":"#111a2e"),borderWidth:2}, data}]});
-    // 增速异常标注
+    // 增速异常标注 + 负值项注记
     const revYoY=(r.rev_yoy||[]).filter(isNum).slice(-1)[0];
     const notes=[];
+    negItems.forEach(x=>{
+      if(x.name==="净利润") notes.push(`<span style="color:#f87171">⚠ ${r.cost_year}财年净亏损 ${fm(Math.abs(x.value))}（亏损不计入饼图占比）</span>`);
+      else if(x.name==="所得税") notes.push(`<span class="text-slate-400">ℹ 所得税为负（税收抵免 ${fm(Math.abs(x.value))}）</span>`);
+      else notes.push(`<span class="text-slate-400">ℹ ${x.name}为负值 ${fm(x.value)}，未计入饼图</span>`);
+    });
     r.cost_items.forEach(x=>{
       if(!isNum(x.yoy)||!isNum(revYoY)) return;
       if(x.name==="净利润" && x.yoy>revYoY+10) notes.push(`<span style="color:#4ade80">✦ 净利润同比 +${x.yoy}%，显著快于营收(+${revYoY}%) —— 利润率在改善</span>`);
       else if(x.name==="研发投入" && x.yoy>revYoY+10) notes.push(`<span style="color:#38bdf8">✦ 研发投入同比 +${x.yoy}%，远超营收增速 —— 加码投入期</span>`);
-      else if(x.name!=="净利润" && x.yoy>revYoY+10) notes.push(`<span style="color:#fbbf24">⚠ ${x.name}同比 +${x.yoy}%，明显快于营收(+${revYoY}%) —— 正在侵蚀利润率</span>`);
+      else if(x.name==="所得税" && x.yoy>revYoY+10) notes.push(`<span class="text-slate-400">ℹ 所得税同比 +${x.yoy}% —— 通常随税前利润同步放大，非成本恶化信号</span>`);
+      else if(x.name!=="净利润" && x.name!=="所得税" && x.yoy>revYoY+10) notes.push(`<span style="color:#fbbf24">⚠ ${x.name}同比 +${x.yoy}%，明显快于营收(+${revYoY}%) —— 正在侵蚀利润率</span>`);
       else if(x.name==="净利润" && x.yoy<revYoY-15) notes.push(`<span style="color:#f87171">⚠ 净利润同比 ${x.yoy>0?"+":""}${x.yoy}%，大幅落后营收(+${revYoY}%) —— 增收不增利</span>`);
     });
     $("#dPieNotes").innerHTML=notes.join("<br/>");
@@ -762,7 +772,11 @@
 
   // ---- ③ 现金流与风险 ----
   function renderCfTab(){
+    if(!curC) return;
     const c=curC, p=curP, C=tc();
+    if(!hasECharts){
+      $("#dCashChart").innerHTML='<div class="text-amber-400 text-sm p-3">未能加载 ECharts（需联网）。</div>';
+      $("#dCashNotes").innerHTML=""; renderRiskPanel(); renderPolicy(); return; }
     if(!p || !p.cashflow || !p.cashflow.years){
       $("#dCashChart").innerHTML='<div class="text-slate-500 text-sm p-3">暂无现金流数据</div>';
       $("#dCashNotes").innerHTML=""; renderRiskPanel(); renderPolicy(); return; }
@@ -832,6 +846,7 @@
 
   // ---- ④ 消息与博弈 ----
   function renderNwTab(){
+    if(!curC) return;
     const c=curC, p=curP;
     if(!p){ $("#dNewsList").innerHTML=NOPROF; $("#dNewsSum").innerHTML="";
       $("#dOpts").innerHTML=""; $("#dOptNote").textContent=""; $("#dOptExp").textContent="";
@@ -870,13 +885,12 @@
 
     const dp=p.darkpool, sPct=(p.short||{}).pct_float;
     if(dp&&isNum(dp.short_pct)){
-      const col=dp.short_pct>=55?"#f87171":(dp.short_pct>=45?"#fbbf24":"#4ade80");
       $("#dDark").innerHTML=
         `<div class="flex items-center gap-6 flex-wrap">
           <div><div class="text-xs text-slate-400">场外(含暗池)空头成交占比 <span class="text-slate-500">${escH(dp.date)}</span></div>
-            <div class="text-3xl font-bold mt-1" style="color:${col}">${dp.short_pct}%</div></div>
-          <div class="text-xs text-slate-400 leading-relaxed max-w-md">来源 FINRA RegSHO 日度数据 —— 公开数据中最接近"暗池情绪"的代理指标(逐笔暗池数据无免费源)。
-          该值≈50%为中性(做市商双边报价所致)；持续>55%多头需谨慎，<45%卖压相对较轻。${isNum(sPct)?`当前做空占流通盘 ${sPct}%。`:""}</div>
+            <div class="text-3xl font-bold mt-1" style="color:#38bdf8">${dp.short_pct}%</div></div>
+          <div class="text-xs text-slate-400 leading-relaxed max-w-md">来源 FINRA RegSHO 日度数据（场外/暗池成交中标记为卖空的比例）—— 公开数据中最常用的"暗池活动"代理指标（逐笔暗池数据无免费源）。
+          注意：该比例大部分由<b>做市商双边报价</b>产生，40%~60% 属常态区间，<b>单日绝对值不构成方向信号</b>；更有参考意义的是与该股自身历史均值的持续偏离。${isNum(sPct)?`当前做空占流通盘 ${sPct}%（交易所口径空头存量，与上述成交流量口径不同）。`:""}</div>
         </div>`;
     } else { $("#dDark").innerHTML='<div class="text-slate-500 text-sm">暂无 FINRA 场外数据</div>'; }
   }
@@ -893,7 +907,7 @@
     disposeProf();
     switchTab("tabOv");
     $("#drawer").scrollTop = 0;
-    $("#dTitle").innerHTML = `${c.name||""} <a href="https://www.tradingview.com/symbols/${encodeURIComponent(c.code||"")}/" target="_blank" rel="noopener" class="text-sky-300 font-mono text-base hover:underline" title="在 TradingView 打开概览页">${c.code||""} ↗</a> <span class="badge ${tagClass(c.tag)} ml-2">${c.tag||""}</span>`;
+    $("#dTitle").innerHTML = `${escH(c.name||"")} <a href="https://www.tradingview.com/symbols/${encodeURIComponent(c.code||"")}/" target="_blank" rel="noopener" class="text-sky-300 font-mono text-base hover:underline" title="在 TradingView 打开概览页">${escH(c.code||"")} ↗</a> <span class="badge ${tagClass(c.tag)} ml-2">${escH(c.tag||"")}</span>`;
     $("#dSub").textContent = `${c.industry||"—"} · 现价 $${f(c.price)} · 综合分 ${f(getVal(c,"final_score"),1)}（技术 ${f(c.tech_score,2)} / 基本面 ${f(c.fund_score,0)} / 景气 ${f(c.prosperity_score,0)}）`;
     $("#dConclusion").textContent = c.conclusion || "—";
 
@@ -914,7 +928,7 @@
     $("#dRisk").innerHTML = [
       rcell("分析师目标价", isNum(c.target_price)?`$${c.target_price.toFixed(2)}`:dash, "#38bdf8"),
       rcell("距目标价", isNum(c.upside_pct)?(c.upside_pct>0?"+":"")+c.upside_pct.toFixed(1)+"%":dash, isNum(c.upside_pct)?(c.upside_pct>=0?"#14b8a6":"#f59e0b"):""),
-      rcell("分析师评级", (c.analyst_rating||dash)+(isNum(c.analyst_count)?` (${c.analyst_count.toFixed(0)}人)`:""), "#c084fc"),
+      rcell("分析师评级", escH(c.analyst_rating||dash)+(isNum(c.analyst_count)?` (${c.analyst_count.toFixed(0)}人)`:""), "#c084fc"),
       rcell("Beta(120日)", f(c.beta,2)),
       rcell("日均波动ATR%", isNum(c.atr_pct)?c.atr_pct.toFixed(2)+"%":dash),
       rcell("最大回撤(1年)", isNum(c.max_dd_pct)?c.max_dd_pct.toFixed(1)+"%":dash, ddCol),
@@ -958,9 +972,10 @@
 
   function drawDetailChart(det, c){
     const el = $("#detailChart");
+    if(detailChart){ detailChart.dispose(); detailChart=null; }   // 先清旧实例, 防止跨股票残留
+    el.innerHTML="";
     if(!hasECharts){ el.innerHTML='<div class="text-amber-400 text-sm p-4">未能加载 ECharts（需联网），无法绘制K线图。</div>'; return; }
     if(!det || !det.dates){ el.innerHTML='<div class="text-slate-500 text-sm p-4">暂无该标的的逐日明细数据。</div>'; return; }
-    if(detailChart){ detailChart.dispose(); }
     const C=tc();
     detailChart = echarts.init(el, ec());
     const dates = det.dates;
@@ -1026,8 +1041,9 @@
 
   function drawRoe(trend){
     const el=$("#dRoe");
-    if(!hasECharts){ el.innerHTML=""; return; }
-    if(roeChart){ roeChart.dispose(); }
+    if(roeChart){ roeChart.dispose(); roeChart=null; }   // 先清旧实例, 防止跨股票残留
+    el.innerHTML="";
+    if(!hasECharts){ return; }
     if(!trend || !trend.length){ el.innerHTML='<div class="text-slate-500 text-sm">暂无ROE趋势数据</div>'; return; }
     const C=tc();
     roeChart=echarts.init(el, ec());
