@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS tech_scan(
     sig_channel TEXT, sig_pivot TEXT, sig_ma TEXT, sig_osc TEXT,
     dist_lower REAL, dist_pivot REAL, dist_ma REAL, drawdown_pct REAL, rsi REAL,
     support_label TEXT, support_price REAL, dist_support_pct REAL, breakdown_price REAL,
-    high_52w REAL, low_52w REAL, pos_52w_pct REAL, ret_half_year_pct REAL,
+    high_52w REAL, low_52w REAL, pos_52w_pct REAL, ret_half_year_pct REAL, ret_1m_pct REAL,
     turnover REAL, volume_ratio REAL, amount_today REAL, avg_amt20_yi REAL,
     kdj_k REAL, kdj_d REAL, kdj_j REAL, kdj_tag TEXT,
     PRIMARY KEY(run_date, code)

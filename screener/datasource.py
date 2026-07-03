@@ -113,22 +113,89 @@ def _retry(fn, *a, **k):
 # ===========================================================================
 #  1) 股票池 + 板块 (标普500)
 # ===========================================================================
+# NASDAQ 板块名 -> GICS/SPDR 口径 (统一以便板块景气 ETF 匹配)
+_NASDAQ_TO_GICS = {
+    "Technology": "Information Technology",
+    "Finance": "Financials",
+    "Health Care": "Health Care",
+    "Consumer Discretionary": "Consumer Discretionary",
+    "Consumer Staples": "Consumer Staples",
+    "Industrials": "Industrials",
+    "Energy": "Energy",
+    "Real Estate": "Real Estate",
+    "Utilities": "Utilities",
+    "Basic Materials": "Materials",
+    "Telecommunications": "Communication Services",
+}
+
+
 def get_universe() -> pd.DataFrame | None:
-    """返回 code, name, sector 的 DataFrame (标普500)。"""
-    key = _cache_key("universe", dt.date.today().isoformat())
+    """返回 code, name, sector 的 DataFrame。
+    模式 all_us: 市值>=下限的全美股 (NASDAQ 官方筛选器); sp500: 仅标普500。"""
+    mode = CONFIG["source"]["universe_mode"]
+    key = _cache_key("universe", mode, dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
         return c
-    df = _universe_from_csv()
+    df = None
+    if mode == "all_us":
+        df = _universe_all_us()
+    if df is None or df.empty:      # sp500 模式, 或 all_us 失败 -> 退回标普500
+        df = _universe_from_csv()
+        if df is None or df.empty:
+            df = _universe_from_wiki()
     if df is None or df.empty:
-        df = _universe_from_wiki()
-    if df is None or df.empty:
-        log.warning("标普500名单在线获取失败, 使用内置兜底名单(%d只)", len(_FALLBACK_UNIVERSE))
+        log.warning("在线名单获取失败, 使用内置兜底名单(%d只)", len(_FALLBACK_UNIVERSE))
         df = pd.DataFrame(_FALLBACK_UNIVERSE, columns=["code", "name", "sector"])
     df["code"] = df["code"].astype(str).str.strip()
     df = df.dropna(subset=["code"]).drop_duplicates(subset=["code"]).reset_index(drop=True)
     _cache_save(key, df)
     return df
+
+
+def _clean_mcap(x) -> float:
+    s = str(x).replace("$", "").replace(",", "").strip()
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
+def _valid_ticker(sym: str) -> bool:
+    sym = str(sym).strip().upper()
+    return bool(sym) and "^" not in sym and " " not in sym and all(
+        ch.isalnum() or ch in ".-" for ch in sym)
+
+
+def _universe_all_us() -> pd.DataFrame | None:
+    import requests
+    hdr = {**_UA, "Accept": "application/json, text/plain, */*",
+           "Accept-Language": "en-US,en;q=0.9",
+           "Origin": "https://www.nasdaq.com", "Referer": "https://www.nasdaq.com/"}
+    try:
+        r = _retry(requests.get, CONFIG["source"]["nasdaq_screener"], headers=hdr,
+                   timeout=CONFIG["fetch"]["timeout_sec"])
+        data = r.json().get("data", {})
+        rows = data.get("rows") or (data.get("table") or {}).get("rows") or []
+    except Exception as e:
+        log.warning("NASDAQ 全美股名单失败: %s", e)
+        return None
+    if not rows:
+        return None
+    minmc = CONFIG["source"]["min_market_cap"]
+    out = []
+    for row in rows:
+        sym = str(row.get("symbol", "")).strip()
+        if not _valid_ticker(sym):
+            continue
+        if _clean_mcap(row.get("marketCap")) < minmc:
+            continue
+        sec_raw = str(row.get("sector", "")).strip()
+        out.append((sym, str(row.get("name", "")).strip(), _NASDAQ_TO_GICS.get(sec_raw, sec_raw)))
+    if not out:
+        return None
+    log.info("全美股(市值>=%.1gB): %d 只", minmc / 1e9, len(out))
+    return pd.DataFrame(out, columns=["code", "name", "sector"])
 
 
 def _universe_from_csv():
@@ -235,9 +302,10 @@ def fetch_info(code: str) -> dict | None:
     c = _cache_load(key)
     if c is not None:
         return c
+    def _get():   # 每次重试都用全新 Ticker, 促使 yfinance 重新取 crumb/cookie
+        return _yf().Ticker(_yf_symbol(code)).info
     try:
-        tk = _yf().Ticker(_yf_symbol(code))
-        info = _retry(lambda: tk.info)
+        info = _retry(_get)
     except Exception as e:
         log.debug("fetch_info %s 失败: %s", code, e)
         return None

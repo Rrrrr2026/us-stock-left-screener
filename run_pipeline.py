@@ -108,8 +108,15 @@ def run(use_cache=True):
         f = m3.pull_fundamentals(rec["code"], sector=rec.get("industry"))
         return (rec, detail, f)
 
+    # 预热 Yahoo crumb/cookie(顺序拉2只), 基本面用更低并发, 显著减少 401 Invalid Crumb
+    for rd in top_hits[:2]:
+        try:
+            ds.fetch_info(rd[0]["code"])
+        except Exception:
+            pass
+    fund_workers = CONFIG["fetch"].get("fund_workers") or workers
     results = []
-    with ThreadPoolExecutor(max_workers=workers) as pool:
+    with ThreadPoolExecutor(max_workers=fund_workers) as pool:
         futs = [pool.submit(_fund, rd) for rd in top_hits]
         for fut in tqdm(as_completed(futs), total=len(futs)):
             try:

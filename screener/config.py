@@ -35,6 +35,9 @@ SECTOR_ETF = {
 
 CONFIG = {
     "source": {
+        "universe_mode": "all_us",      # "all_us"(市值>=下限的全美股) 或 "sp500"(仅标普500)
+        "min_market_cap": 1.0e9,        # all_us 模式下的市值下限 (美元)
+        "nasdaq_screener": "https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=10000&offset=0&download=true",
         "sp500_csv": [
             "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv",
             "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv",
@@ -54,6 +57,7 @@ CONFIG = {
         "retry_backoff_sec": 1.0,
         "timeout_sec": 20,
         "max_workers": 0,               # 0 = min(12, CPU*2); yfinance 并发别太高防限频
+        "fund_workers": 5,              # 基本面(.info)并发更低: Yahoo crumb 在高并发下易 401
     },
     "sector": {                          # 板块景气 (对应 A股的"行业景气")
         "top_n": 11,                    # 展示全部板块
