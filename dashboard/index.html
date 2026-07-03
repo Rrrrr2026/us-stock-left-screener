@@ -628,7 +628,7 @@
       const color = (inv? (p<=30?'#4ade80':p>=80?'#f87171':'#60a5fa') : '#60a5fa');
       const note = inv? (p<=30?'偏低':p>=80?'偏高':'中等'):'';
       return `<div class="mb-3"><div class="flex justify-between text-xs text-slate-300 mb-1"><span>${lab} ${note}</span><span>${p.toFixed(0)}% 分位</span></div><div class="barbg"><div class="barfill" style="width:${Math.max(2,Math.min(100,p))}%;background:${color}"></div></div></div>`; };
-    $("#dVal").innerHTML = bar("市盈率 在全体候选中的分位", c.pe_pct, true) + bar("市净率PB 分位", c.pb_pct, true);
+    $("#dVal").innerHTML = bar("市盈率 在全体候选中的分位", c.pe_pct, true) + bar("市净率PB 在全体候选中的分位", c.pb_pct, true);
 
     $("#overlay").classList.remove("hidden");
     $("#drawer").classList.remove("translate-x-full");

@@ -131,8 +131,9 @@ def run(use_cache=True):
             except Exception as e:
                 log.debug("基本面失败: %s", e)
 
-    # 板块PE中位 + 全体PE横截面分位 (使 PE 便宜加分与"分位"列有意义)
+    # 板块PE中位 + 全体PE/PB横截面分位 (使 便宜加分与"分位"列有意义)
     all_pe = sorted([f["pe_ttm"] for (_, _, f) in results if f.get("pe_ttm") and f["pe_ttm"] > 0])
+    all_pb = sorted([f["pb"] for (_, _, f) in results if f.get("pb") and f["pb"] > 0])
     sec_pe = defaultdict(list)
     for (rec, _, f) in results:
         if f.get("pe_ttm") and f["pe_ttm"] > 0:
@@ -144,6 +145,11 @@ def run(use_cache=True):
             return None
         return round(sum(1 for x in all_pe if x <= pe) / len(all_pe) * 100.0, 1)
 
+    def _pb_pct(pb):
+        if not pb or pb <= 0 or not all_pb:
+            return None
+        return round(sum(1 for x in all_pb if x <= pb) / len(all_pb) * 100.0, 1)
+
     scored = []
     for (rec, detail, f) in results:
         sec = rec.get("industry")
@@ -151,6 +157,7 @@ def run(use_cache=True):
             f["pe_industry_median"] = round(sec_pe_med[sec], 2)
             f["pe_vs_industry"] = round(f["pe_ttm"] / sec_pe_med[sec], 2)
         f["pe_pct"] = _pe_pct(f.get("pe_ttm"))
+        f["pb_pct"] = _pb_pct(f.get("pb"))
         fr = m4.cross_score(rec, f, prosperity_map.get(sec))
         scored.append((rec, detail, f, fr))
 

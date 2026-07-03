@@ -315,6 +315,57 @@ def fetch_info(code: str) -> dict | None:
     return info
 
 
+_NI_ROWS = ("Net Income", "Net Income Common Stockholders",
+            "Net Income Including Noncontrolling Interests")
+_EQ_ROWS = ("Stockholders Equity", "Total Stockholders Equity",
+            "Common Stock Equity", "Total Equity Gross Minority Interest")
+
+
+def fetch_roe_trend(code: str) -> list:
+    """年度 ROE 趋势 = 净利润 / 股东权益 * 100 (yfinance 年报, 通常近4个财年)。
+    取不到(接口失败/行名缺失/权益<=0)返回 [], 前端显示"暂无"。"""
+    key = _cache_key("roetrend", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, list) else []
+
+    def _row(df, names):
+        if df is None or getattr(df, "empty", True):
+            return None
+        for n in names:
+            if n in df.index:
+                return df.loc[n]
+        return None
+
+    out = []
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        inc = _retry(lambda: tk.income_stmt)
+        bal = _retry(lambda: tk.balance_sheet)
+        ni = _row(inc, _NI_ROWS)
+        eq = _row(bal, _EQ_ROWS)
+        if ni is not None and eq is not None:
+            for col in ni.index:
+                if col not in eq.index:
+                    continue
+                n_v, e_v = ni[col], eq[col]
+                try:
+                    n_v, e_v = float(n_v), float(e_v)
+                except Exception:
+                    continue
+                if not (pd.notna(n_v) and pd.notna(e_v)) or e_v <= 0:
+                    continue
+                out.append({"date": pd.Timestamp(col).strftime("%Y-%m"),
+                            "value": round(n_v / e_v * 100.0, 1)})
+        out.sort(key=lambda d: d["date"])
+        out = out[-5:]
+    except Exception as e:
+        log.debug("fetch_roe_trend %s 失败: %s", code, e)
+        out = []
+    _cache_save(key, out)
+    return out
+
+
 # ===========================================================================
 #  4) 板块指数 (SPDR 行业 ETF) / 基准 (SPY)
 # ===========================================================================

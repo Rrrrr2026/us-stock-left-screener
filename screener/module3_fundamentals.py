@@ -77,6 +77,12 @@ def pull_fundamentals(code: str, sector: str | None = None,
     if dy is not None:
         res["dividend_yield"] = round(dy * 100.0, 2) if dy < 1 else round(dy, 2)
 
+    # ROE 多年趋势 (年度财报: 净利润/股东权益; 失败静默为 [])
+    try:
+        res["roe_trend"] = ds.fetch_roe_trend(code)
+    except Exception:
+        pass
+
     # 板块 PE 中位对比
     if sector_pe_median is not None and res["pe_ttm"] is not None and sector_pe_median > 0:
         res["pe_industry_median"] = round(float(sector_pe_median), 2)
