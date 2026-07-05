@@ -77,9 +77,13 @@ def pull_fundamentals(code: str, sector: str | None = None,
     if dy is not None:
         res["dividend_yield"] = round(dy * 100.0, 2) if dy < 1 else round(dy, 2)
 
-    # ROE 多年趋势 (年度财报: 净利润/股东权益; 失败静默为 [])
+    # ROE 多年趋势 (年度财报: 净利润/股东权益; 失败静默为 []) + 季度TTM口径
     try:
         res["roe_trend"] = ds.fetch_roe_trend(code)
+    except Exception:
+        pass
+    try:
+        res["roe_trend_q"] = ds.fetch_roe_trend_q(code)
     except Exception:
         pass
 

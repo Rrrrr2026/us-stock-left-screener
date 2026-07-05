@@ -368,6 +368,58 @@ def fetch_roe_trend(code: str) -> list:
     return out
 
 
+def fetch_roe_trend_q(code: str) -> list:
+    """单季 ROE 趋势 (TTM 口径): 最近4季净利润之和 / 当季股东权益 *100, 逐季滚动, 近8季。
+    用于详情页 ROE 图的"季度"细化选项。"""
+    key = _cache_key("roetrendq", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, list) else []
+
+    def _row(df, names):
+        if df is None or getattr(df, "empty", True):
+            return None
+        for n in names:
+            if n in df.index:
+                return df.loc[n]
+        return None
+
+    out = []
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        inc = _retry(lambda: tk.quarterly_income_stmt)
+        bal = _retry(lambda: tk.quarterly_balance_sheet)
+        ni, eq = _row(inc, _NI_ROWS), _row(bal, _EQ_ROWS)
+        if ni is not None and eq is not None:
+            ni_by, eq_by = {}, {}
+            for col, v in ni.items():
+                try:
+                    v = float(v)
+                except Exception:
+                    continue
+                if pd.notna(v):
+                    ni_by[pd.Timestamp(col)] = v
+            for col, v in eq.items():
+                try:
+                    v = float(v)
+                except Exception:
+                    continue
+                if pd.notna(v) and v > 0:
+                    eq_by[pd.Timestamp(col)] = v
+            dates = sorted(set(ni_by) & set(eq_by))
+            for i in range(3, len(dates)):     # 需4季凑TTM
+                ttm = sum(ni_by[dates[j]] for j in range(i - 3, i + 1))
+                out.append({"date": dates[i].strftime("%Y-%m"),
+                            "value": round(ttm / eq_by[dates[i]] * 100.0, 1)})
+            out = out[-8:]
+    except Exception as e:
+        log.debug("fetch_roe_trend_q %s 失败: %s", code, e)
+        out = []
+    if out:
+        _cache_save(key, out)
+    return out
+
+
 # ===========================================================================
 #  3b) 深度档案: 现金流 / 营收 / 新闻 / 期权 / FINRA 场外空头占比
 # ===========================================================================
@@ -397,10 +449,26 @@ def _row_by_year(series):
     return out
 
 
+def _row_by_qtr(series):
+    """财报行 -> {Timestamp: 百万美元float}; 用于季度序列。"""
+    out = {}
+    if series is None:
+        return out
+    for col, v in series.items():
+        try:
+            v = float(v)
+        except Exception:
+            continue
+        if pd.isna(v):
+            continue
+        out[pd.Timestamp(col)] = round(v / 1e6, 1)
+    return out
+
+
 def fetch_cashflow(code: str) -> dict:
     """年度现金流关键科目 (百万美元, 近4财年)。用于"钱流向哪了"分析:
     经营现金流 / 资本开支 / 自由现金流 / 收购 / 回购 / 分红 / 净发债 / 净利润。"""
-    key = _cache_key("cashflow", code, dt.date.today().isoformat())
+    key = _cache_key("cashflow2", code, dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
         return c if isinstance(c, dict) else {}
@@ -429,6 +497,17 @@ def fetch_cashflow(code: str) -> dict:
             out = {"years": years}
             for k, d in data.items():
                 out[k] = [d.get(y) for y in years]
+        # 季度现金流(近8季) — 用于图表的"季度"细化选项
+        try:
+            qcf = _retry(lambda: tk.quarterly_cash_flow)
+            qdata = {k: _row_by_qtr(_stmt_row(qcf, names)) for k, names in rows.items()}
+            qdates = sorted({d for dd in qdata.values() for d in dd})[-8:]
+            if qdates and out:
+                out["q_years"] = [d.strftime("%y") + "Q" + str((d.month - 1) // 3 + 1) for d in qdates]
+                for k, dd in qdata.items():
+                    out["q_" + k] = [dd.get(d) for d in qdates]
+        except Exception:
+            pass
     except Exception as e:
         log.debug("fetch_cashflow %s 失败: %s", code, e)
         out = {}
