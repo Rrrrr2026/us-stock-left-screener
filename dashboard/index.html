@@ -529,7 +529,7 @@
   function applyLang(){
     applyStaticI18n();
     syncWeightUI(); syncAdvUI(); renderIndustryChart(); render(); updateStrip();
-    if(curC && !$("#drawer").classList.contains("translate-x-full")) openDetail(curC);
+    if(curC && !$("#drawer").classList.contains("translate-x-full")) openDetail(curC, true);
   }
   // ========================================================================
 
@@ -1244,10 +1244,10 @@
     $("#tvWrap").innerHTML = `<iframe src="${src}" style="width:100%;height:100%;border:0" allowtransparency="true" scrolling="no" loading="lazy"></iframe>`;
     $("#tvLink").href = `https://www.tradingview.com/symbols/${sym}/`;
   }
-  function openDetail(c){
+  function openDetail(c, keepGran){
     curC = c; curP = (DATA.profiles||{})[c.code] || null;
     disposeProf();
-    resetGran();
+    if(!keepGran) resetGran();   // 语言切换时保留年度/季度选择
     switchTab("tabOv");
     $("#drawer").scrollTop = 0;
     $("#dLiveBody").innerHTML = t("live_hint");   // 每次打开重置实时行情提示
