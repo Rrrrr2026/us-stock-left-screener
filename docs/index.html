@@ -197,6 +197,10 @@
 
     <!-- ① 总览 -->
     <div id="tabOv" class="dtab">
+      <div class="card p-3 mb-3 flex items-center justify-between flex-wrap gap-2">
+        <div id="dLiveBody" class="text-sm text-slate-400 min-w-0" data-i18n="live_hint">点击右侧按钮获取实时行情（价格 / 今日涨跌 / 日内高低 / 52周 / 成交量，来源 Yahoo）。</div>
+        <button id="liveBtn" class="segbtn flex-none" data-i18n="live_btn">🔄 实时行情</button>
+      </div>
       <div id="dConclusion" class="card p-3 text-[13px] leading-relaxed text-slate-200 mb-3"></div>
       <div id="dChips" class="flex flex-wrap gap-2 mb-3"></div>
       <div id="dRisk" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2"></div>
@@ -381,6 +385,11 @@
       cost_year_total:"总营收", of_rev:"占营收",
       // sparkline / 表格计数
       rows_of:"共", rows_of2:"只", yoy_l:"同比",
+      // 实时行情按钮
+      live_hint:"点击右侧按钮获取实时行情（价格 / 今日涨跌 / 日内高低 / 52周 / 成交量，来源 Yahoo）。",
+      live_btn:"🔄 实时行情", live_loading:"加载中…", live_tag:"实时",
+      live_fail:"实时获取失败（公共代理限流或离线），已回退到每日快照。可稍后重试。",
+      live_high:"日内高", live_low:"日内低", live_52w:"52周", live_vol:"成交量", live_src:"来源 Yahoo · ",
     },
     en:{
       title:"US Stocks · Left-Side Support Screener",
@@ -467,6 +476,10 @@
       hq_l:"HQ", emp_l:"Employees", website_l:"Website", no_summary:"No business summary",
       cost_year_total:"total revenue", of_rev:"of revenue",
       rows_of:"", rows_of2:" names", yoy_l:"YoY",
+      live_hint:"Click the button for a live quote (price / day change / intraday high-low / 52w / volume, via Yahoo).",
+      live_btn:"🔄 Live quote", live_loading:"Loading…", live_tag:"LIVE",
+      live_fail:"Live fetch failed (public proxy throttled or offline); showing the daily snapshot. Try again later.",
+      live_high:"Day high", live_low:"Day low", live_52w:"52w", live_vol:"Volume", live_src:"via Yahoo · ",
     }
   };
   function t(k){ const d=T[LANG]; return (d && d[k]!=null) ? d[k] : (T.zh[k]!=null?T.zh[k]:k); }
@@ -1158,6 +1171,51 @@
     } else { $("#dDark").innerHTML=`<div class="text-slate-500 text-sm">${t("dark_none")}</div>`; }
   }
 
+  // ---- 实时行情 (客户端经公共CORS代理拉 Yahoo chart 端点; 仅价格类实时数据可得) ----
+  const CORS_PROXIES = [
+    u => "https://corsproxy.io/?url="+encodeURIComponent(u),
+    u => "https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(u),
+  ];
+  async function fetchLiveQuote(code){
+    if(!code) return;
+    const body=$("#dLiveBody"), btn=$("#liveBtn");
+    const ysym = String(code).replace(/\./g,"-");   // BRK.B -> BRK-B (Yahoo)
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ysym)}?range=1d&interval=1d`;
+    btn.disabled=true; const old=btn.textContent; btn.textContent=t("live_loading");
+    body.innerHTML=`<span class="text-slate-400">${t("live_loading")}</span>`;
+    let meta=null;
+    for(const mk of CORS_PROXIES){
+      try{
+        const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),9000);
+        const r=await fetch(mk(url),{signal:ctrl.signal}); clearTimeout(to);
+        if(!r.ok) continue;
+        const j=await r.json();
+        meta=j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+        if(meta) break;
+      }catch(e){ /* try next proxy */ }
+    }
+    btn.disabled=false; btn.textContent=old;
+    if(!meta){ body.innerHTML=`<span class="text-amber-400">${t("live_fail")}</span>`; return; }
+    const price=meta.regularMarketPrice, prev=meta.chartPreviousClose||meta.previousClose;
+    const chg=(isNum(price)&&isNum(prev)&&prev)?(price/prev-1)*100:null;
+    const cur=meta.currency==="USD"?"$":(meta.currency||"");
+    const tm=meta.regularMarketTime?new Date(meta.regularMarketTime*1000).toLocaleString():"";
+    const chgCol=isNum(chg)?(chg>=0?"#ef4444":"#16a34a"):"";   // 涨红跌绿
+    const item=(lab,val)=>`<span class="mr-4 whitespace-nowrap"><span class="text-slate-400">${lab}</span> <b class="text-slate-100">${val}</b></span>`;
+    body.innerHTML=
+      `<div class="text-sm flex flex-wrap items-center gap-y-1">`+
+        `<span class="mr-4 whitespace-nowrap"><span class="badge tag-strong">${t("live_tag")}</span> `+
+          `<b class="text-lg text-slate-100">${cur}${isNum(price)?price.toFixed(2):dash}</b> `+
+          (isNum(chg)?`<b style="color:${chgCol}">${chg>0?"+":""}${chg.toFixed(2)}%</b>`:"")+`</span>`+
+        item(t("live_high"), cur+(isNum(meta.regularMarketDayHigh)?meta.regularMarketDayHigh.toFixed(2):dash))+
+        item(t("live_low"), cur+(isNum(meta.regularMarketDayLow)?meta.regularMarketDayLow.toFixed(2):dash))+
+        item(t("live_52w"), cur+(isNum(meta.fiftyTwoWeekLow)?meta.fiftyTwoWeekLow.toFixed(2):dash)+" ~ "+cur+(isNum(meta.fiftyTwoWeekHigh)?meta.fiftyTwoWeekHigh.toFixed(2):dash))+
+        item(t("live_vol"), isNum(meta.regularMarketVolume)?meta.regularMarketVolume.toLocaleString():dash)+
+        `<span class="text-xs text-slate-500 w-full mt-1">${t("live_src")}${tm}</span>`+
+      `</div>`;
+  }
+  $("#liveBtn").onclick = ()=>{ if(curC) fetchLiveQuote(curC.code); };
+
   function mountTV(code){
     const theme = document.body.classList.contains("light")?"light":"dark";
     const sym = encodeURIComponent(code||"");
@@ -1170,6 +1228,7 @@
     disposeProf();
     switchTab("tabOv");
     $("#drawer").scrollTop = 0;
+    $("#dLiveBody").innerHTML = t("live_hint");   // 每次打开重置实时行情提示
     $("#dTitle").innerHTML = `${escH(c.name||"")} <a href="https://www.tradingview.com/symbols/${encodeURIComponent(c.code||"")}/" target="_blank" rel="noopener" class="text-sky-300 font-mono text-base hover:underline" title="${t("tv_link")}">${escH(c.code||"")} ↗</a> <span class="badge ${tagClass(c.tag)} ml-2">${escH(tagText(c.tag))}</span>`;
     const sep1=(LANG==="en")?" / ":" / ", pOpen=(LANG==="en")?" (":"（", pClose=(LANG==="en")?")":"）";
     $("#dSub").textContent = `${c.industry||"—"} · ${t("cur_price")} $${f(c.price)} · ${t("composite")} ${f(getVal(c,"final_score"),1)}${pOpen}${t("of_tech")} ${f(c.tech_score,2)}${sep1}${t("of_fund")} ${f(c.fund_score,0)}${sep1}${t("of_prosp")} ${f(c.prosperity_score,0)}${pClose}`;

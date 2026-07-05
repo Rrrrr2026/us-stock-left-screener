@@ -441,7 +441,7 @@ def fetch_revenue_trend(code: str) -> dict:
     """营收增速(年度+季度, YoY) + 最近财年"营收流向"成本结构拆解
     (营业成本/研发/销售管理/税/净利, 各项含同比 — 用于饼图与增速标注)。
     注: 免费数据源无分部(business segment)营收, 以成本结构拆解替代。"""
-    key = _cache_key("revtrend2", code, dt.date.today().isoformat())
+    key = _cache_key("revtrend3", code, dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
         return c if isinstance(c, dict) else {}
@@ -511,7 +511,8 @@ def fetch_revenue_trend(code: str) -> dict:
     except Exception as e:
         log.debug("fetch_revenue_trend %s 失败: %s", code, e)
         out = {}
-    if out:
+    # 只缓存拿到"年度"数据的结果; 仅季度(年报被限频)视为不完整, 不缓存 -> 下次重试年报
+    if out.get("years"):
         _cache_save(key, out)
     return out
 

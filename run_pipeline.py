@@ -132,6 +132,33 @@ def run(use_cache=True):
             except Exception as e:
                 log.debug("基本面失败: %s", e)
 
+    # ---- 加固: Yahoo 限频会让整批基本面空白, 此时重新预热 crumb 并对空白项重试一轮 ----
+    def _fund_empty(f):
+        return not (f.get("pe_ttm") or f.get("target_price") or f.get("roe"))
+    n_empty = sum(1 for (_, _, f) in results if _fund_empty(f))
+    if results and n_empty >= max(5, int(0.4 * len(results))):
+        log.warning("基本面覆盖偏低(空白 %d/%d), 重新预热并重试空白项 ...", n_empty, len(results))
+        for rd in top_hits[:3]:
+            try:
+                ds.fetch_info(rd[0]["code"])   # 重新预热 crumb/cookie
+            except Exception:
+                pass
+        idx_empty = [i for i, (_, _, f) in enumerate(results) if _fund_empty(f)]
+        with ThreadPoolExecutor(max_workers=max(2, fund_workers // 2)) as pool:
+            futs = {pool.submit(m3.pull_fundamentals, results[i][0]["code"],
+                                sector=results[i][0].get("industry")): i for i in idx_empty}
+            for fut in as_completed(futs):
+                i = futs[fut]
+                try:
+                    nf = fut.result()
+                    if nf and not _fund_empty(nf):
+                        rec, detail, _ = results[i]
+                        results[i] = (rec, detail, nf)
+                except Exception:
+                    pass
+        log.info("基本面重试后覆盖: %d/%d",
+                 sum(1 for (_, _, f) in results if not _fund_empty(f)), len(results))
+
     # 板块PE中位 + 全体PE/PB横截面分位 (使 便宜加分与"分位"列有意义)
     all_pe = sorted([f["pe_ttm"] for (_, _, f) in results if f.get("pe_ttm") and f["pe_ttm"] > 0])
     all_pb = sorted([f["pb"] for (_, _, f) in results if f.get("pb") and f["pb"] > 0])
@@ -180,9 +207,12 @@ def run(use_cache=True):
     finra_map = ds.fetch_finra_short_volume()
     log.info("  FINRA 场外空头数据: %d 只", len(finra_map))
 
+    _prof_ok = {}   # code -> 该档案是否拿到"年度营收"(判断是否需重试)
+
     def _prof(fr):
         p = m6.pull_profile(fr["code"], sector=fr.get("industry"), short_map=finra_map)
         db.save_profile(run_date, fr["code"], p)
+        _prof_ok[fr["code"]] = bool((p.get("revenue") or {}).get("years"))
 
     with ThreadPoolExecutor(max_workers=fund_workers) as pool:
         futs = [pool.submit(_prof, fr) for fr in prof_targets]
@@ -191,6 +221,20 @@ def run(use_cache=True):
                 fut.result()
             except Exception as e:
                 log.debug("深度档案失败: %s", e)
+
+    # ---- 加固: 年报被限频会让"营收拆解/现金流"空白, 对缺年度营收的档案重试一轮 ----
+    miss = [fr for fr in prof_targets if not _prof_ok.get(fr["code"])]
+    if miss and len(miss) >= max(5, int(0.3 * len(prof_targets))):
+        log.warning("深度档案覆盖偏低(缺年度营收 %d/%d), 重试 ...", len(miss), len(prof_targets))
+        with ThreadPoolExecutor(max_workers=max(2, fund_workers // 2)) as pool:
+            futs = [pool.submit(_prof, fr) for fr in miss]
+            for fut in as_completed(futs):
+                try:
+                    fut.result()
+                except Exception:
+                    pass
+        log.info("深度档案重试后: 有年度营收 %d/%d",
+                 sum(1 for v in _prof_ok.values() if v), len(prof_targets))
 
     finished = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     db.log_run(run_date, started, finished, n_scanned, len(final_records), selected, "ok")
