@@ -82,6 +82,7 @@
     </div>
     <div class="text-right text-sm text-slate-400">
       <div class="flex items-center justify-end gap-3">
+        <button id="refreshBtn" class="segbtn" title="拉取最新已发布数据（重新扫描需运行本地更新脚本）" data-i18n="refresh_btn">🔄 刷新数据</button>
         <button id="langBtn" class="segbtn" title="中文 / English">EN</button>
         <button id="themeBtn" class="segbtn" title="点击切换：白天 / 黑夜 / 跟随系统">🌙 黑夜</button>
         <span><span data-i18n="updated">最后更新：</span><span id="updatedAt" class="text-slate-200">—</span></span>
@@ -276,7 +277,7 @@
 <script>
 (function(){
   "use strict";
-  const DATA = (window.__ASHARE__) || (window.__US__) || {meta:{},industries:[],candidates:[],details:{},columns:[]};
+  let DATA = (window.__ASHARE__) || (window.__US__) || {meta:{},industries:[],candidates:[],details:{},columns:[]};
   const hasECharts = (typeof echarts !== "undefined");
   const $ = s => document.querySelector(s);
 
@@ -386,6 +387,7 @@
       // sparkline / 表格计数
       rows_of:"共", rows_of2:"只", yoy_l:"同比",
       gran_year:"年度", gran_qtr:"季度", no_qtr:"暂无季度数据",
+      refresh_btn:"🔄 刷新数据", refresh_loading:"⏳ 拉取中…", refresh_ok:"✓ 已是最新", refresh_fail:"✗ 拉取失败",
       // 实时行情按钮
       live_hint:"点击右侧按钮获取实时行情（价格 / 今日涨跌 / 日内高低 / 52周 / 成交量，来源 Yahoo）。",
       live_btn:"🔄 实时行情", live_loading:"加载中…", live_tag:"实时",
@@ -478,6 +480,7 @@
       cost_year_total:"total revenue", of_rev:"of revenue",
       rows_of:"", rows_of2:" names", yoy_l:"YoY",
       gran_year:"Annual", gran_qtr:"Quarterly", no_qtr:"No quarterly data",
+      refresh_btn:"🔄 Refresh", refresh_loading:"⏳ Fetching…", refresh_ok:"✓ Up to date", refresh_fail:"✗ Fetch failed",
       live_hint:"Click the button for a live quote (price / day change / intraday high-low / 52w / volume, via Yahoo).",
       live_btn:"🔄 Live quote", live_loading:"Loading…", live_tag:"LIVE",
       live_fail:"Live fetch failed (public proxy throttled or offline); showing the daily snapshot. Try again later.",
@@ -612,12 +615,15 @@
             : {axis:"#7e93b8",grid:"#1b2640",label:"#cbd5e1",base:"#3b5a8a"}; }
 
   // ---------- 概览 ----------
-  const meta = DATA.meta||{};
-  $("#updatedAt").textContent = meta.updated_at || dash;
-  $("#ovScanned").textContent = isNum(meta.n_scanned)?meta.n_scanned:dash;
-  $("#ovHit").textContent = isNum(meta.n_hit)?meta.n_hit:(DATA.candidates.length||dash);
-  $("#ovInds").textContent = (meta.selected_industries||[]).length || dash;
-  $("#ovDate").textContent = meta.run_date || dash;
+  function renderOverview(){
+    const meta = DATA.meta||{};
+    $("#updatedAt").textContent = meta.updated_at || dash;
+    $("#ovScanned").textContent = isNum(meta.n_scanned)?meta.n_scanned:dash;
+    $("#ovHit").textContent = isNum(meta.n_hit)?meta.n_hit:(DATA.candidates.length||dash);
+    $("#ovInds").textContent = (meta.selected_industries||[]).length || dash;
+    $("#ovDate").textContent = meta.run_date || dash;
+  }
+  renderOverview();
 
   // ---------- 行业景气榜 ----------
   let indChart=null, indKind="bar";
@@ -900,7 +906,7 @@
     rows.forEach(c=>{ csv += keys.map(k=> k==="spark"?"":esc(getVal(c,k))).join(",")+"\n"; });
     const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8;"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download = (LANG==="en"?"left_side_candidates_":"左侧候选_")+(meta.run_date||"export")+".csv"; a.click();
+    a.download = (LANG==="en"?"left_side_candidates_":"左侧候选_")+((DATA.meta||{}).run_date||"export")+".csv"; a.click();
   };
 
   // ---------- 个股详情 ----------
@@ -1424,6 +1430,29 @@
   $("#langBtn").onclick = ()=>{ LANG = (LANG==="en")?"zh":"en";
     try{ localStorage.setItem(LANG_KEY, LANG); }catch(e){}
     applyLang(); };
+
+  // ---------- 刷新数据 (拉取最新已发布的 dashboard_data.js, 绕过缓存, 原地重渲染) ----------
+  // 注: 静态站无后端, 无法重新扫描市场; 重新扫描请运行本地更新脚本(会推送新数据)。
+  async function reloadData(){
+    const btn=$("#refreshBtn"); if(!btn) return;
+    const prevLabel=t("refresh_btn");
+    btn.disabled=true; btn.textContent=t("refresh_loading");
+    try{
+      const r=await fetch("dashboard_data.js?_="+Date.now(), {cache:"no-store"});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const txt=await r.text();
+      (new Function(txt))();                       // 重新赋值 window.__US__/__ASHARE__
+      const nd=(window.__ASHARE__)||(window.__US__);
+      if(!nd || !Array.isArray(nd.candidates)) throw new Error("bad data");
+      DATA=nd;
+      recomputeScores(); renderOverview(); applyStaticI18n();
+      renderIndustryChart(); updateStrip(); render();
+      if(!$("#drawer").classList.contains("translate-x-full")) closeDrawer();
+      btn.textContent=t("refresh_ok");
+    }catch(e){ btn.textContent=t("refresh_fail"); }
+    setTimeout(()=>{ btn.disabled=false; btn.textContent=prevLabel; }, 1600);
+  }
+  $("#refreshBtn").onclick=reloadData;
 
   // ---------- 启动 ----------
   if(!DATA.candidates.length){ $("#emptyHint").classList.remove("hidden"); }
