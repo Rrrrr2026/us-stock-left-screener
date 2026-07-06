@@ -9,12 +9,16 @@ from __future__ import annotations
 import os
 import sys
 import time
+import socket
 import argparse
 import logging
 import statistics
 import datetime as dt
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# 防卡死: 给所有网络请求设默认超时, 避免某个卡住的连接让流程无限期挂起。
+socket.setdefaulttimeout(30)
 
 from screener.config import CONFIG
 from screener import db
