@@ -226,7 +226,10 @@ def run(use_cache=True):
     show_n = CONFIG["output"]["final_top_n"]
     # 同理: export 会把排名 >show_n 的 dip 股(上限 dip_top_n)补进主表, 这里也给它们做深度档案,
     # 否则点开 🪸 股的深度档案页是空的。与 export 的浮现集合保持一致。
-    dip_tail = [fr for fr in final_records[show_n:] if fr.get("dip")][:CONFIG["output"].get("dip_top_n", 40)]
+    # 必须与 export 的 dip_extra 用同一排序(dip_score 降序), 否则两个"前dip_top_n"是不同集合,
+    # 会出现"export 浮现的高dip_score股没做深度档案 -> 点开是空的"。
+    dip_tail = sorted([fr for fr in final_records[show_n:] if fr.get("dip")],
+                      key=lambda fr: -(fr.get("dip_score") or 0.0))[:CONFIG["output"].get("dip_top_n", 40)]
     prof_targets = final_records[:show_n] + dip_tail
     log.info("阶段C 深度档案: %d 只 (现金流/营收/新闻/期权/FINRA) ...", len(prof_targets))
     finra_map = ds.fetch_finra_short_volume()
