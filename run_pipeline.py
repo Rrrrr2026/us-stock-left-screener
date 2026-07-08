@@ -211,25 +211,23 @@ def run(use_cache=True):
 
     scored.sort(key=lambda x: (-(x[3].get("final_score") or -1), x[0]["code"]))
     detail_n = CONFIG["output"]["dashboard_detail_top_n"]
-    final_records = []
+    show_n = CONFIG["output"]["final_top_n"]
+    final_records = [x[3] for x in scored]
+    # export 浮现集合 = 前 show_n 名 + (排名>show_n 的 dip 按 dip_score 取前 dip_top_n)。
+    # detail 与 profile 都对齐这个集合: 既保证浮现的 dip 股点开有 K线/档案, 又不为不展示的股白存(控 JS 体积)。
+    dip_tail = sorted([fr for fr in final_records[show_n:] if fr.get("dip")],
+                      key=lambda fr: -(fr.get("dip_score") or 0.0))[:CONFIG["output"].get("dip_top_n", 40)]
+    # 所有"会展示"的 dip 股(主榜内的 + 补进来的)都存 K线: 🪸 股点开有图不空;
+    # 非展示的 dip 不存, 控 JS 体积。(前 detail_n 名照常存, 与支撑股一致)
+    shown_dip = {fr["code"] for fr in final_records[:show_n] if fr.get("dip")} | {fr["code"] for fr in dip_tail}
     for idx, (rec, detail, f, fr) in enumerate(scored):
         db.save_tech(run_date, [rec])
         db.save_fundamental(run_date, rec["code"], f)
         db.save_final(run_date, [fr])
-        final_records.append(fr)
-        # 深跌抄底股 final_score 低会沉到 detail_n 之后, 但它们会在主表浮现;
-        # 若不存 detail, 点进去 K线图是空的 —— 所以 dip 股无论排名都存 detail。
-        if (idx < detail_n or fr.get("dip")) and detail:
+        if (idx < detail_n or rec["code"] in shown_dip) and detail:
             db.save_detail(run_date, rec["code"], detail)
 
     # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 最终候选 + 浮现的深跌抄底股 ----
-    show_n = CONFIG["output"]["final_top_n"]
-    # 同理: export 会把排名 >show_n 的 dip 股(上限 dip_top_n)补进主表, 这里也给它们做深度档案,
-    # 否则点开 🪸 股的深度档案页是空的。与 export 的浮现集合保持一致。
-    # 必须与 export 的 dip_extra 用同一排序(dip_score 降序), 否则两个"前dip_top_n"是不同集合,
-    # 会出现"export 浮现的高dip_score股没做深度档案 -> 点开是空的"。
-    dip_tail = sorted([fr for fr in final_records[show_n:] if fr.get("dip")],
-                      key=lambda fr: -(fr.get("dip_score") or 0.0))[:CONFIG["output"].get("dip_top_n", 40)]
     prof_targets = final_records[:show_n] + dip_tail
     log.info("阶段C 深度档案: %d 只 (现金流/营收/新闻/期权/FINRA) ...", len(prof_targets))
     finra_map = ds.fetch_finra_short_volume()
