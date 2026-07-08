@@ -241,7 +241,7 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
             confirms = []
             if bull_div: confirms.append("底背离")
             if green_shrink: confirms.append("缩柱")
-            if kdj_tag == "金叉": confirms.append("金叉")
+            if kdj_tag and "金叉" in kdj_tag: confirms.append("金叉")   # kdj_tag 可能是"金叉/超卖", 用子串匹配
             if vol_ratio_calc is not None and vol_ratio_calc >= dcfg.get("vol_spike", 1.8):
                 confirms.append("放量")
             dip_confirm = "".join(confirms)

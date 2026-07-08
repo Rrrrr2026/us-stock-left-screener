@@ -121,12 +121,13 @@ def run(use_cache=True):
     _seen = {rd[0]["code"] for rd in top_hits}
     dip_pool = sorted([rd for rd in hits if rd[0].get("dip")],
                       key=lambda rd: -rd[0].get("dip_score", 0.0))
-    n_dip_added = 0
-    for rd in dip_pool[:CONFIG["output"].get("dip_top_n", 40)]:
-        if rd[0]["code"] not in _seen:
-            top_hits.append(rd)
-            _seen.add(rd[0]["code"])
-            n_dip_added += 1
+    # 先剔除已在 top_hits 的(它们本就会拿到基本面), 再取前 dip_top_n 只 —— 与 export 的过滤顺序一致,
+    # 避免"已入选的 dip 白占名额、排名靠后的真 dip 反而进不了 final_rank"。
+    dip_new = [rd for rd in dip_pool if rd[0]["code"] not in _seen][:CONFIG["output"].get("dip_top_n", 40)]
+    for rd in dip_new:
+        top_hits.append(rd)
+        _seen.add(rd[0]["code"])
+    n_dip_added = len(dip_new)
     log.info("深跌抄底桶: 命中 %d 只, 并入候选 %d 只", len(dip_pool), n_dip_added)
     log.info("阶段B 基本面+交叉打分: 取技术分最高 %d 只(含深跌抄底) ...", len(top_hits))
 
@@ -216,12 +217,17 @@ def run(use_cache=True):
         db.save_fundamental(run_date, rec["code"], f)
         db.save_final(run_date, [fr])
         final_records.append(fr)
-        if idx < detail_n and detail:
+        # 深跌抄底股 final_score 低会沉到 detail_n 之后, 但它们会在主表浮现;
+        # 若不存 detail, 点进去 K线图是空的 —— 所以 dip 股无论排名都存 detail。
+        if (idx < detail_n or fr.get("dip")) and detail:
             db.save_detail(run_date, rec["code"], detail)
 
-    # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 仅最终候选 ----
+    # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 最终候选 + 浮现的深跌抄底股 ----
     show_n = CONFIG["output"]["final_top_n"]
-    prof_targets = final_records[:show_n]
+    # 同理: export 会把排名 >show_n 的 dip 股(上限 dip_top_n)补进主表, 这里也给它们做深度档案,
+    # 否则点开 🪸 股的深度档案页是空的。与 export 的浮现集合保持一致。
+    dip_tail = [fr for fr in final_records[show_n:] if fr.get("dip")][:CONFIG["output"].get("dip_top_n", 40)]
+    prof_targets = final_records[:show_n] + dip_tail
     log.info("阶段C 深度档案: %d 只 (现金流/营收/新闻/期权/FINRA) ...", len(prof_targets))
     finra_map = ds.fetch_finra_short_volume()
     log.info("  FINRA 场外空头数据: %d 只", len(finra_map))
