@@ -90,7 +90,10 @@ def run(use_cache=True):
         if h is None:
             return None
         rec, detail = m2.scan_one(code, name, h, None, bench_close=bench_close)
-        if rec is None or rec["tech_score"] < CONFIG["tech"]["min_tech_score"]:
+        if rec is None:
+            return None
+        # 支撑分达标 OR 深跌抄底桶达标, 二者其一即保留 (dip 桶专捞结构已破的深跌超卖股)
+        if rec["tech_score"] < CONFIG["tech"]["min_tech_score"] and not rec.get("dip"):
             return None
         rec["industry"] = sector
         return (rec, detail)
@@ -113,7 +116,19 @@ def run(use_cache=True):
     # ---- 阶段B: 仅对技术分最高的前N只拉基本面 ----
     hits.sort(key=lambda rd: (-rd[0]["tech_score"], rd[0]["code"]))
     top_hits = hits[:CONFIG["output"]["fund_top_n"]]
-    log.info("阶段B 基本面+交叉打分: 取技术分最高 %d 只 ...", len(top_hits))
+    # 并入"深跌抄底"桶: 支撑分排不进 top_hits、但深跌达标的, 按 dip_score 取前 dip_top_n 只补进来。
+    # 这样 BABA 这类 falling knife 也能拿到基本面 + 进 final_rank(带 🪸 标签), 又不挤占支撑型名额。
+    _seen = {rd[0]["code"] for rd in top_hits}
+    dip_pool = sorted([rd for rd in hits if rd[0].get("dip")],
+                      key=lambda rd: -rd[0].get("dip_score", 0.0))
+    n_dip_added = 0
+    for rd in dip_pool[:CONFIG["output"].get("dip_top_n", 40)]:
+        if rd[0]["code"] not in _seen:
+            top_hits.append(rd)
+            _seen.add(rd[0]["code"])
+            n_dip_added += 1
+    log.info("深跌抄底桶: 命中 %d 只, 并入候选 %d 只", len(dip_pool), n_dip_added)
+    log.info("阶段B 基本面+交叉打分: 取技术分最高 %d 只(含深跌抄底) ...", len(top_hits))
 
     def _fund(rd):
         rec, detail = rd

@@ -88,6 +88,17 @@ CONFIG = {
         "vol_shrink_ratio": 0.85,       # 支撑处近量/20日均量 < 此值 = 缩量企稳
         "min_tech_score": 1.0,
         "detail_bars": 250,
+        # ---- 独立"深跌超卖抄底"桶 (与支撑型左侧互不干扰) ----
+        # 这里刻画的是"结构已破的深度价值/抄底"标的: 深跌 + 超卖 + 逼近52周低点。
+        # 与主模型(要求上升通道/贴均线/前低企稳)不同, 它接受趋势已破, 专门捞 BABA 这类 falling knife。
+        "dip": {
+            "drawdown_min": 0.35,       # 从近channel_window高点回撤 >= 35%
+            "rsi_max": 32.0,            # RSI(14) <= 32 (真超卖)
+            "pos_52w_max": 20.0,        # 处于52周区间底部 20% 以内
+            "vol_spike": 1.8,           # 近量/20日均量 >= 此值 = 放量(抛售/买入高潮)见底确认之一
+            # dip_score 桶内排名权重: 深度 / 超卖程度 / 贴近低点 / 见底确认数
+            "weights": {"depth": 1.2, "oversold": 1.0, "nearlow": 1.0, "confirm": 0.8},
+        },
     },
     "cross": {
         "w_tech": 0.50, "w_fund": 0.30, "w_prosperity": 0.20,
@@ -101,6 +112,7 @@ CONFIG = {
         "final_top_n": 200,
         "fund_top_n": 300,
         "dashboard_detail_top_n": 150,
+        "dip_top_n": 40,                # 深跌抄底桶最多并入/展示的只数 (上限, 防止灌进一堆刀)
     },
 }
 
