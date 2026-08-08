@@ -40,6 +40,7 @@ def pull_fundamentals(code: str, sector: str | None = None,
         "eps": None, "eps_yoy": None, "roe": None, "roe_trend": [],
         "revenue_yoy": None, "netprofit_yoy": None, "gross_margin": None, "debt_ratio": None,
         "target_price": None, "analyst_rating": None, "analyst_count": None, "upside_pct": None,
+        "fcf_yield": None, "sector_yf": None,
         "fund_flags": [],
     }
     info = ds.fetch_info(code)
@@ -64,18 +65,41 @@ def pull_fundamentals(code: str, sector: str | None = None,
     res["eps"] = _num(info.get("trailingEps"))
     res["revenue_yoy"] = _pct(info.get("revenueGrowth"))
     res["netprofit_yoy"] = _pct(info.get("earningsGrowth"))
-    res["eps_yoy"] = _pct(info.get("earningsQuarterlyGrowth")) or res["netprofit_yoy"]
+    eq = _pct(info.get("earningsQuarterlyGrowth"))
+    res["eps_yoy"] = eq if eq is not None else res["netprofit_yoy"]   # 0.0 是合法值, 不能用 or
     res["gross_margin"] = _pct(info.get("grossMargins"))
+
+    # Yahoo 板块 (GICS口径) — 覆盖 NASDAQ 名单里的错误/缺失板块 (MO≠Health Care 等)
+    sec_yf = info.get("sector")
+    res["sector_yf"] = ds.YAHOO_TO_GICS.get(str(sec_yf).strip()) if sec_yf else None
+
+    # FCF收益率 = 自由现金流 / 市值 (估值质量信号)
+    fcf, mcap = _num(info.get("freeCashflow")), _num(info.get("marketCap"))
+    if fcf is not None and mcap and mcap > 0:
+        res["fcf_yield"] = round(fcf / mcap * 100.0, 2)
 
     # 杠杆: yfinance 无"资产负债率", 用 债务/(债务+权益) 近似 (debtToEquity 是百分比数)
     dte = _num(info.get("debtToEquity"))
     if dte is not None and dte >= 0:
         res["debt_ratio"] = round(dte / (dte + 100.0) * 100.0, 1)
 
-    # 股息率: 不同 yf 版本可能是小数或百分数
-    dy = _num(info.get("dividendYield"))
-    if dy is not None:
-        res["dividend_yield"] = round(dy * 100.0, 2) if dy < 1 else round(dy, 2)
+    # 股息率: 首选 年股息$/现价 (单位无歧义); 兜底才用 dividendYield —
+    # yfinance>=0.2.54 起 dividendYield 已是百分数(0.96=0.96%), 老代码的
+    # "dy<1 则 ×100" 启发式会把真实<1%的股息率放大100倍 (SPGI 0.96%→94%的根因)
+    rate = _num(info.get("dividendRate")) or _num(info.get("trailingAnnualDividendRate"))
+    if rate and cur and cur > 0:
+        res["dividend_yield"] = round(rate / cur * 100.0, 2)
+    else:
+        dy = _num(info.get("dividendYield"))
+        if dy is not None:
+            tay = _num(info.get("trailingAnnualDividendYield"))   # 恒为小数口径, 用作单位判别
+            if tay is not None and tay > 0:
+                # dy 与 tay*100 同量级 => dy已是百分数; 与 tay 同量级 => dy是小数
+                res["dividend_yield"] = round(dy, 2) if abs(dy - tay * 100.0) < abs(dy - tay) else round(dy * 100.0, 2)
+            else:
+                res["dividend_yield"] = round(dy, 2)              # 新版口径: 按百分数处理
+    if res["dividend_yield"] is not None and not (0 <= res["dividend_yield"] <= 30):
+        res["dividend_yield"] = None      # >30% 基本是单位错乱/特殊分配, 宁缺毋滥
 
     # ROE 多年趋势 (年度财报: 净利润/股东权益; 失败静默为 []) + 季度TTM口径
     try:

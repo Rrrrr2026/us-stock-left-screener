@@ -115,6 +115,8 @@ def _retry(fn, *a, **k):
 #  1) 股票池 + 板块 (标普500)
 # ===========================================================================
 # NASDAQ 板块名 -> GICS/SPDR 口径 (统一以便板块景气 ETF 匹配)
+# 注意: NASDAQ 的分类质量一般 (MO/BTI 标成 Health Care 之类), 仅作初值;
+# 候选股在基本面阶段会用 Yahoo 的 sector 覆盖 (见 YAHOO_TO_GICS + module3)。
 _NASDAQ_TO_GICS = {
     "Technology": "Information Technology",
     "Finance": "Financials",
@@ -129,12 +131,35 @@ _NASDAQ_TO_GICS = {
     "Telecommunications": "Communication Services",
 }
 
+# Yahoo Finance (yf.info["sector"]) -> GICS 板块名 (权威覆盖源)
+YAHOO_TO_GICS = {
+    "Technology": "Information Technology",
+    "Financial Services": "Financials",
+    "Healthcare": "Health Care",
+    "Consumer Cyclical": "Consumer Discretionary",
+    "Consumer Defensive": "Consumer Staples",
+    "Communication Services": "Communication Services",
+    "Industrials": "Industrials",
+    "Energy": "Energy",
+    "Utilities": "Utilities",
+    "Real Estate": "Real Estate",
+    "Basic Materials": "Materials",
+}
+
+# 名称形如债券/优先股/权证/SPAC单位的非普通股, 从股票池剔除 (NASDAQ 会给它们填发行人市值)
+# 注意 "Preferred Bank" 是真公司名, 用负向断言放行
+_NON_COMMON_RE = re.compile(
+    r"(?i)\b(notes? due|debentures?|preferred\b(?!\s+bank)|"
+    r"warrants?\b|rights?$|\bunits?$|units?,? (each )?consisting)")
+
 
 def get_universe() -> pd.DataFrame | None:
     """返回 code, name, sector 的 DataFrame。
     模式 all_us: 市值>=下限的全美股 (NASDAQ 官方筛选器); sp500: 仅标普500。"""
     mode = CONFIG["source"]["universe_mode"]
-    key = _cache_key("universe", mode, dt.date.today().isoformat())
+    # 市值下限进缓存键: 改配置立即生效, 不被当日旧名单缓存挡住
+    key = _cache_key("universe", mode, CONFIG["source"]["min_market_cap"],
+                     dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
         return c
@@ -150,7 +175,10 @@ def get_universe() -> pd.DataFrame | None:
         df = pd.DataFrame(_FALLBACK_UNIVERSE, columns=["code", "name", "sector"])
     df["code"] = df["code"].astype(str).str.strip()
     df = df.dropna(subset=["code"]).drop_duplicates(subset=["code"]).reset_index(drop=True)
-    _cache_save(key, df)
+    # all_us 模式只缓存"看起来完整"的名单: 避免 NASDAQ 一次抖动导致
+    # 降级的 S&P500/兜底名单被缓存一整天, 白天重跑也扫不全
+    if mode != "all_us" or len(df) > 1500:
+        _cache_save(key, df)
     return df
 
 
@@ -191,11 +219,16 @@ def _universe_all_us() -> pd.DataFrame | None:
             continue
         if _clean_mcap(row.get("marketCap")) < minmc:
             continue
+        name = str(row.get("name", "")).strip()
+        if _NON_COMMON_RE.search(name):     # 剔除挂牌债券/优先股/权证/SPAC单位
+            continue
         sec_raw = str(row.get("sector", "")).strip()
-        out.append((sym, str(row.get("name", "")).strip(), _NASDAQ_TO_GICS.get(sec_raw, sec_raw)))
+        if sec_raw == "Miscellaneous":       # NASDAQ 的杂项与空板块统一记 "" (未知, 待Yahoo覆盖)
+            sec_raw = ""
+        out.append((sym, name, _NASDAQ_TO_GICS.get(sec_raw, sec_raw)))
     if not out:
         return None
-    log.info("全美股(市值>=%.1gB): %d 只", minmc / 1e9, len(out))
+    log.info("全美股(市值>=$%.0fM): %d 只", minmc / 1e6, len(out))
     return pd.DataFrame(out, columns=["code", "name", "sector"])
 
 
@@ -312,7 +345,12 @@ def fetch_info(code: str) -> dict | None:
         return None
     if not isinstance(info, dict) or not info:
         return None
-    _cache_save(key, info)
+    # 只缓存"像样"的 info: 限频时 Yahoo 会返回只有零星键的空壳 dict,
+    # 缓存它会让该股当天所有重试都拿到空基本面 (全横杠行的根因之一)
+    looks_ok = len(info) >= 5 and any(
+        info.get(k) is not None for k in ("regularMarketPrice", "currentPrice", "marketCap"))
+    if looks_ok:
+        _cache_save(key, info)
     return info
 
 
@@ -407,8 +445,11 @@ def fetch_roe_trend_q(code: str) -> list:
                 if pd.notna(v) and v > 0:
                     eq_by[pd.Timestamp(col)] = v
             dates = sorted(set(ni_by) & set(eq_by))
-            for i in range(3, len(dates)):     # 需4季凑TTM
-                ttm = sum(ni_by[dates[j]] for j in range(i - 3, i + 1))
+            for i in range(3, len(dates)):     # 需4季凑TTM, 且4季必须连续(相邻间隔<=120天)
+                span = [dates[j] for j in range(i - 3, i + 1)]
+                if any((span[j + 1] - span[j]).days > 120 for j in range(3)):
+                    continue                   # 有缺季, TTM 不成立, 跳过
+                ttm = sum(ni_by[d] for d in span)
                 out.append({"date": dates[i].strftime("%Y-%m"),
                             "value": round(ttm / eq_by[dates[i]] * 100.0, 1)})
             out = out[-8:]

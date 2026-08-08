@@ -159,11 +159,17 @@ def pull_profile(code: str, sector: str | None = None,
         "shareholder": info.get("shareHolderRightsRisk"),
         "overall": info.get("overallRisk"),
     }
-    # yfinance 的 shortPercentOfFloat 是小数(1.05=流通盘的105%, 逼空股会>1);
-    # 仅当离谱地大(>5, 即500%)才视为已是百分数
-    spf = _num(info.get("shortPercentOfFloat"))
-    if spf is not None:
-        spf = round(spf * 100.0, 2) if spf <= 5 else round(spf, 2)
+    # 做空占流通盘: 首选 sharesShort/floatShares 直接算 (单位无歧义, 不受
+    # yfinance 换单位影响 — dividendYield 就是被这种启发式坑过);
+    # 算不出再用 shortPercentOfFloat 小数口径兜底 (>5 视为已是百分数)
+    spf = None
+    ss, fs = _num(info.get("sharesShort")), _num(info.get("floatShares"))
+    if ss is not None and fs and fs > 0:
+        spf = round(ss / fs * 100.0, 2)
+    else:
+        spf = _num(info.get("shortPercentOfFloat"))
+        if spf is not None:
+            spf = round(spf * 100.0, 2) if spf <= 5 else round(spf, 2)
     p["short"] = {
         "pct_float": spf,
         "days_to_cover": _num(info.get("shortRatio")),

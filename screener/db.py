@@ -63,10 +63,14 @@ CREATE TABLE IF NOT EXISTS profile(
     run_date TEXT, code TEXT, profile_json TEXT,
     PRIMARY KEY(run_date, code)
 );
+CREATE TABLE IF NOT EXISTS trade_plan(
+    run_date TEXT, code TEXT, plan_json TEXT,
+    PRIMARY KEY(run_date, code)
+);
 CREATE TABLE IF NOT EXISTS run_log(
     run_date TEXT PRIMARY KEY, started_at TEXT, finished_at TEXT,
     n_scanned INTEGER, n_hit INTEGER, selected_industries TEXT,
-    status TEXT, message TEXT
+    status TEXT, message TEXT, data_date TEXT
 );
 """
 
@@ -96,12 +100,15 @@ def _migrate(conn):
                       ("max_dd_pct", "REAL"), ("beta", "REAL"), ("vol_ratio_calc", "REAL"),
                       ("sig_vol", "TEXT"), ("boll_low", "REAL"), ("fib_382", "REAL"),
                       ("fib_500", "REAL"), ("fib_618", "REAL"),
-                      ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT")],
+                      ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT"),
+                      ("supp_touches", "INTEGER"), ("trend_ok", "INTEGER"), ("rs_60", "REAL")],
         "fundamental": [("target_price", "REAL"), ("analyst_rating", "TEXT"),
                         ("analyst_count", "REAL"), ("upside_pct", "REAL"),
-                        ("roe_trend_q_json", "TEXT")],
+                        ("roe_trend_q_json", "TEXT"),
+                        ("fcf_yield", "REAL"), ("sector_yf", "TEXT")],
         "final_rank": [("conclusion_en", "TEXT"),
                        ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT")],
+        "run_log": [("data_date", "TEXT")],
     }
     for table, cols in want.items():
         have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -114,7 +121,7 @@ def _migrate(conn):
 
 
 _RUN_TABLES = ("industry_score", "tech_scan", "fundamental",
-               "final_rank", "stock_detail", "profile", "run_log")
+               "final_rank", "stock_detail", "profile", "trade_plan", "run_log")
 
 
 def clear_run(run_date: str):
@@ -182,7 +189,8 @@ def save_fundamental(run_date: str, code: str, f: dict):
         "pe_ttm", "pe_pct", "pe_industry_median", "pe_vs_industry", "pb", "pb_pct",
         "dividend_yield", "eps", "eps_yoy", "roe", "revenue_yoy", "netprofit_yoy",
         "gross_margin", "debt_ratio",
-        "target_price", "analyst_rating", "analyst_count", "upside_pct")}
+        "target_price", "analyst_rating", "analyst_count", "upside_pct",
+        "fcf_yield", "sector_yf")}
     row.update({
         "run_date": run_date, "code": code,
         "roe_trend_json": json.dumps(f.get("roe_trend", []), ensure_ascii=False),
@@ -210,13 +218,20 @@ def save_profile(run_date: str, code: str, profile: dict):
     }])
 
 
+def save_trade_plan(run_date: str, code: str, plan: dict):
+    _upsert("trade_plan", [{
+        "run_date": run_date, "code": code,
+        "plan_json": json.dumps(plan, ensure_ascii=False),
+    }])
+
+
 def log_run(run_date, started_at, finished_at, n_scanned, n_hit,
-            selected_industries, status, message=""):
+            selected_industries, status, message="", data_date=None):
     _upsert("run_log", [{
         "run_date": run_date, "started_at": started_at, "finished_at": finished_at,
         "n_scanned": n_scanned, "n_hit": n_hit,
         "selected_industries": json.dumps(selected_industries, ensure_ascii=False),
-        "status": status, "message": message,
+        "status": status, "message": message, "data_date": data_date or run_date,
     }])
 
 

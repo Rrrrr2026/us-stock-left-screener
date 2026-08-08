@@ -80,7 +80,7 @@
   <header class="flex items-center justify-between flex-wrap gap-3 mb-4">
     <div>
       <h1 class="text-2xl font-bold text-white" data-i18n="title">美股 · 「左侧支撑位」筛选与监控台</h1>
-      <p class="text-sm text-slate-400 mt-1" data-i18n="subtitle">全美股(市值≥$1B) · 高景气板块内 · 回踩支撑/接近前低的左侧机会 · 技术 × 基本面交叉打分</p>
+      <p class="text-sm text-slate-400 mt-1" data-i18n="subtitle">全美股(市值≥$1亿) · 高景气板块内 · 回踩支撑/接近前低的左侧机会 · 技术 × 基本面交叉打分</p>
     </div>
     <div class="text-right text-sm text-slate-400">
       <div class="flex items-center justify-end gap-3">
@@ -206,6 +206,16 @@
         <button id="liveBtn" class="segbtn flex-none" data-i18n="live_btn">🔄 实时行情</button>
       </div>
       <div id="dConclusion" class="card p-3 text-[13px] leading-relaxed text-slate-200 mb-3"></div>
+      <!-- 🎯 买卖点建议 (Trade Plan) -->
+      <div id="dPlanWrap" class="card p-4 mb-3 hidden" style="border-color:rgba(56,189,248,.35)">
+        <div class="flex items-center justify-between flex-wrap gap-1 mb-2">
+          <h4 class="sec-title" data-i18n="plan_title">🎯 买卖点建议</h4>
+          <span id="dPlanMeta" class="text-xs text-slate-400"></span>
+        </div>
+        <div id="dPlanGrid" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3"></div>
+        <div id="dPlanLadder" class="space-y-2"></div>
+        <div id="dPlanNote" class="text-xs text-slate-500 mt-3 leading-relaxed"></div>
+      </div>
       <div id="dChips" class="flex flex-wrap gap-2 mb-3"></div>
       <div id="dRisk" class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2"></div>
       <div id="dFib" class="text-xs text-slate-400 mb-3"></div>
@@ -291,7 +301,7 @@
   const T = {
     zh:{
       title:"美股 · 「左侧支撑位」筛选与监控台",
-      subtitle:"全美股(市值≥$1B) · 高景气板块内 · 回踩支撑/接近前低的左侧机会 · 技术 × 基本面交叉打分",
+      subtitle:"全美股(市值≥$1亿) · 高景气板块内 · 回踩支撑/接近前低的左侧机会 · 技术 × 基本面交叉打分",
       updated:"最后更新：", datasource:"数据源：Yahoo Finance（全美股 · GICS 板块）· 价格单位 USD",
       disclaimer:'⚠️ <b>免责声明</b>：本系统仅对美股做技术/基本面数据的自动化整理与形态筛选，<b>不构成任何投资建议</b>。“左侧买入”是在下跌中、支撑确认前进场，风险天然更高（可能继续下跌或破位）。价格单位为美元(USD)。所有标的需<b>人工复核</b>，使用者自负盈亏与风控。',
       ov_scanned:"今日扫描数", ov_hit:"命中候选数", ov_inds:"入选景气板块", ov_date:"数据日期",
@@ -330,6 +340,20 @@
       tag_strong:"✅ 强左侧", tag_weak:"⚠️ 技术好但基本面弱", tag_watch:"🔎 观察", tag_dip:"🪸 深跌抄底",
       // KDJ / 评级 / 情绪
       kdj_gold:"金叉", kdj_dead:"死叉", kdj_ob:"超买", kdj_os:"超卖", kdj_neutral:"中性",
+      kdj_bull:"偏多", kdj_bear:"偏空",
+      // 买卖点建议
+      plan_title:"🎯 买卖点建议", plan_beta:"历史回测",
+      plan_entry:"建议买入区", plan_entry_support:"等回踩支撑区分批买", plan_entry_market:"已失守支撑·现价分批",
+      plan_entry_none:"无明确支撑位·现价分批需谨慎",
+      plan_stop:"止损位", plan_stop_note:"跌破即离场",
+      plan_rr:"盈亏比", plan_hold:"观察窗口", plan_days:"天",
+      plan_target_steady:"稳健目标", plan_target_base:"基准目标", plan_target_stretch:"进取目标",
+      plan_prob:"胜率", plan_med_days:"中位", plan_days_u:"天到达",
+      plan_ladder:"全目标梯子(点开)", plan_gain:"目标涨幅", plan_price_l:"对应价",
+      plan_sample_a:"样本：本股近2年 ", plan_sample_b:" 次类似支撑回踩事件 + 全候选池 ",
+      plan_sample_c:" 次事件作先验（贝叶斯收缩）",
+      plan_stopped:"60日内曾触止损", plan_no_events:"本股历史类似事件不足，胜率主要来自全池先验，参考价值降低",
+      plan_note:"⚠️ 胜率=历史上「先到目标、未先破止损」的频率（60个交易日窗口），为回测统计而非未来保证；左侧建仓请严格分批与止损。",
       rate_sb:"强力买入", rate_b:"买入", rate_h:"持有", rate_s:"卖出", rate_ss:"强力卖出",
       rate_up:"跑赢", rate_down:"跑输",
       tone_pos:"利好", tone_neg:"利空", tone_neutral:"中性",
@@ -399,7 +423,7 @@
     },
     en:{
       title:"US Stocks · Left-Side Support Screener",
-      subtitle:"All US (mcap ≥ $1B) · within high-prosperity sectors · pullback-to-support / near prior-low setups · technical × fundamental cross-score",
+      subtitle:"All US (mcap ≥ $100M) · within high-prosperity sectors · pullback-to-support / near prior-low setups · technical × fundamental cross-score",
       updated:"Updated: ", datasource:"Source: Yahoo Finance (All US · GICS sectors) · prices in USD",
       disclaimer:'⚠️ <b>Disclaimer</b>: This tool only performs automated organization and pattern screening of technical/fundamental data for US equities and is <b>not investment advice</b>. "Left-side buying" enters during a decline, before support is confirmed, and is inherently higher-risk (price may keep falling or break down). Prices are in USD. Verify every name <b>manually</b>; users bear their own P&amp;L and risk.',
       ov_scanned:"Scanned today", ov_hit:"Candidates", ov_inds:"Selected sectors", ov_date:"Data date",
@@ -434,6 +458,19 @@
       prosperity_total:"Prosperity", selected_paren:"(selected)", prosperity_score_l:"Prosp.",
       tag_strong:"✅ Strong Left", tag_weak:"⚠️ Tech-strong, Weak Fund.", tag_watch:"🔎 Watch", tag_dip:"🪸 Deep-Dip",
       kdj_gold:"Golden X", kdj_dead:"Dead X", kdj_ob:"Overbought", kdj_os:"Oversold", kdj_neutral:"Neutral",
+      kdj_bull:"Bullish", kdj_bear:"Bearish",
+      plan_title:"🎯 Trade Plan", plan_beta:"backtested",
+      plan_entry:"Entry zone", plan_entry_support:"scale in on pullback to support", plan_entry_market:"support lost · scale in at market",
+      plan_entry_none:"no defined support · scale in with caution",
+      plan_stop:"Stop loss", plan_stop_note:"exit if broken",
+      plan_rr:"Reward/Risk", plan_hold:"Window", plan_days:"d",
+      plan_target_steady:"Conservative", plan_target_base:"Base target", plan_target_stretch:"Stretch target",
+      plan_prob:"win rate", plan_med_days:"median", plan_days_u:"d to hit",
+      plan_ladder:"Full target ladder (expand)", plan_gain:"Target gain", plan_price_l:"Price",
+      plan_sample_a:"Sample: ", plan_sample_b:" similar support-touch events on this stock (2y) + ",
+      plan_sample_c:" pooled events as prior (Bayesian shrinkage)",
+      plan_stopped:"touched stop in 60d", plan_no_events:"Too few historical events on this stock — probabilities lean on the pooled prior; treat with extra caution",
+      plan_note:"⚠️ Win rate = historical frequency of \"target hit before stop\" within a 60-trading-day window; backtest statistics, not a guarantee. Scale in and honor stops.",
       rate_sb:"Strong Buy", rate_b:"Buy", rate_h:"Hold", rate_s:"Sell", rate_ss:"Strong Sell",
       rate_up:"Outperform", rate_down:"Underperform",
       tone_pos:"Bullish", tone_neg:"Bearish", tone_neutral:"Neutral",
@@ -497,7 +534,7 @@
     if(tag.indexOf("基本面弱")>=0) return t("tag_weak");
     if(tag.indexOf("深跌抄底")>=0) return t("tag_dip");
     if(tag.indexOf("观察")>=0) return t("tag_watch"); return tag; }
-  const KDJ_MAP={ "金叉":"kdj_gold","死叉":"kdj_dead","超买":"kdj_ob","超卖":"kdj_os","中性":"kdj_neutral" };
+  const KDJ_MAP={ "金叉":"kdj_gold","死叉":"kdj_dead","超买":"kdj_ob","超卖":"kdj_os","中性":"kdj_neutral","偏多":"kdj_bull","偏空":"kdj_bear" };
   function kdjText(s){ if(!s||s==="—") return s; if(LANG==="zh") return s;
     return s.split("/").map(x=>KDJ_MAP[x]?t(KDJ_MAP[x]):x).join("/"); }
   const RATE_MAP={ "强力买入":"rate_sb","买入":"rate_b","持有":"rate_h","卖出":"rate_s","强力卖出":"rate_ss","跑赢":"rate_up","跑输":"rate_down" };
@@ -605,12 +642,17 @@
     try{ localStorage.setItem(THEME_KEY, themeMode); }catch(e){}
   }
   applyTheme();
+  function redrawAfterTheme(){
+    renderIndustryChart();
+    // 抽屉开着时, 里面的 ECharts 图与 TradingView iframe 还是旧主题, 重开一次刷新
+    if(curC && !$("#drawer").classList.contains("translate-x-full")) openDetail(curC, true);
+  }
   $("#themeBtn").onclick = ()=>{           // 点击循环: 黑夜 -> 白天 -> 跟随系统
     themeMode = themeMode==="dark" ? "light" : (themeMode==="light" ? "auto" : "dark");
-    applyTheme(); renderIndustryChart();
+    applyTheme(); redrawAfterTheme();
   };
   if(mqLight){                             // 跟随系统模式下, 系统切换主题时实时联动
-    const onMq = ()=>{ if(themeMode==="auto"){ applyTheme(); renderIndustryChart(); } };
+    const onMq = ()=>{ if(themeMode==="auto"){ applyTheme(); redrawAfterTheme(); } };
     if(mqLight.addEventListener) mqLight.addEventListener("change", onMq);
     else if(mqLight.addListener) mqLight.addListener(onMq);
   }
@@ -626,7 +668,7 @@
     $("#ovScanned").textContent = isNum(meta.n_scanned)?meta.n_scanned:dash;
     $("#ovHit").textContent = isNum(meta.n_hit)?meta.n_hit:(DATA.candidates.length||dash);
     $("#ovInds").textContent = (meta.selected_industries||[]).length || dash;
-    $("#ovDate").textContent = meta.run_date || dash;
+    $("#ovDate").textContent = meta.data_date || meta.run_date || dash;
   }
   renderOverview();
 
@@ -722,13 +764,18 @@
     try{ localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favs))); }catch(e){}
     render(); updateStrip(); }
 
-  // 行业下拉
-  (function(){
+  // 行业下拉 (刷新数据后需重建, 否则新板块进不了下拉)
+  function rebuildIndOptions(){
     const set = Array.from(new Set(DATA.candidates.map(c=>c.industry).filter(Boolean))).sort();
     const sel = $("#filterInd");
+    while(sel.options.length>1) sel.remove(1);   // 保留"全部板块"占位
     set.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
     ensureIndOption(state.ind);   // 上次保存的筛选板块可能不在候选里
-    sel.value = state.ind||""; $("#filterTag").value = state.tag||""; $("#search").value = state.search||"";
+    sel.value = state.ind||"";
+  }
+  (function(){
+    rebuildIndOptions();
+    $("#filterTag").value = state.tag||""; $("#search").value = state.search||"";
     $("#favOnly").checked = !!state.favOnly;
   })();
 
@@ -874,7 +921,7 @@
     const items=[
       [t("strip_strong"), strong+U(), "#4ade80"],
       [t("strip_avgdist"), isNum(avg(dists))?avg(dists).toFixed(2)+"%":dash, "#38bdf8"],
-      [t("strip_avgup"), isNum(avg(ups))?"+"+avg(ups).toFixed(1)+"%":dash, "#14b8a6"],
+      [t("strip_avgup"), isNum(avg(ups))?(avg(ups)>0?"+":"")+avg(ups).toFixed(1)+"%":dash, "#14b8a6"],
       [t("col_industry"), inds+G(), "#c084fc"],
       [t("strip_fav"), favs.size+U(), "#facc15"],
     ];
@@ -1255,6 +1302,42 @@
     $("#tvWrap").innerHTML = `<iframe src="${src}" style="width:100%;height:100%;border:0" allowtransparency="true" scrolling="no" loading="lazy"></iframe>`;
     $("#tvLink").href = `https://www.tradingview.com/symbols/${sym}/`;
   }
+  // ---- 🎯 买卖点建议 (Trade Plan) ----
+  function renderPlan(c){
+    const wrap=$("#dPlanWrap"), p=c.plan;
+    if(!p){ wrap.classList.add("hidden"); return; }
+    wrap.classList.remove("hidden");
+    const en=(LANG==="en");
+    $("#dPlanMeta").textContent = `${t("plan_beta")} · ${t("plan_hold")} ${p.horizon_days}${t("plan_days")}`;
+    const cellP=(lab,val,sub,col)=>`<div class="card p-2"><div class="text-[11px] text-slate-400">${lab}</div><div class="text-sm font-semibold mt-0.5" style="color:${col||'var(--text)'}">${val}</div>${sub?`<div class="text-[10px] text-slate-500 mt-0.5">${sub}</div>`:""}</div>`;
+    const entrySub = p.entry_mode==="support" ? t("plan_entry_support")
+                   : (p.entry_mode==="market" ? t("plan_entry_market") : t("plan_entry_none"));
+    const rrTxt = isNum(p.rr)? (en? `${p.rr} : 1` : `${p.rr} : 1`) : dash;
+    $("#dPlanGrid").innerHTML = [
+      cellP(t("plan_entry"), `$${f(p.entry_low)} ~ $${f(p.entry_high)}`, entrySub, "#38bdf8"),
+      cellP(t("plan_stop"), `$${f(p.stop_price)} (-${f(p.stop_loss_pct,1)}%)`, t("plan_stop_note"), "#f87171"),
+      cellP(t("plan_rr"), rrTxt, isNum(p.stopped_rate_pct)? `${t("plan_stopped")} ${p.stopped_rate_pct.toFixed(0)}%`:"", "#c084fc"),
+      cellP(t("plan_hold"), `≤ ${p.horizon_days} ${t("plan_days")}`, "", ""),
+    ].join("");
+    const tgtRow=(lab,tg,col)=>{
+      if(!tg || !isNum(tg.prob_pct)) return "";
+      const days = tg.days_med!=null? ` · ${t("plan_med_days")} ${tg.days_med}${t("plan_days_u")}` : "";
+      const pb=Math.max(3,Math.min(100,tg.prob_pct));
+      return `<div><div class="flex justify-between text-xs mb-1"><span class="text-slate-300">${lab} <b style="color:${col}">+${f(tg.gain_pct,1)}%</b> → $${f(tg.price)}</span><span class="text-slate-400">${t("plan_prob")} <b style="color:${col}">${tg.prob_pct.toFixed(0)}%</b>${days}</span></div><div class="barbg"><div class="barfill" style="width:${pb}%;background:${col}"></div></div></div>`;
+    };
+    const tg=p.targets||{};
+    $("#dPlanLadder").innerHTML =
+      tgtRow(t("plan_target_steady"), tg.steady, "#4ade80")+
+      tgtRow(t("plan_target_base"), tg.base, "#38bdf8")+
+      tgtRow(t("plan_target_stretch"), tg.stretch, "#fbbf24")+
+      `<details class="mt-1"><summary class="text-xs text-slate-400 cursor-pointer">${t("plan_ladder")}</summary><table class="w-full text-xs mt-1"><thead><tr><th class="text-left">${t("plan_gain")}</th><th class="text-right">${t("plan_price_l")}</th><th class="text-right">${t("plan_prob")}</th></tr></thead><tbody>`+
+      (p.ladder||[]).filter(l=>isNum(l.prob_pct)).map(l=>`<tr><td>+${f(l.gain_pct,0)}%</td><td class="num">$${f(l.price)}</td><td class="num">${l.prob_pct.toFixed(0)}%</td></tr>`).join("")+
+      `</tbody></table></details>`;
+    let sample = `${t("plan_sample_a")}${p.n_events}${t("plan_sample_b")}${p.pool_events}${t("plan_sample_c")}`;
+    if(p.n_events<5) sample += `<br><span class="text-amber-400">${t("plan_no_events")}</span>`;
+    $("#dPlanNote").innerHTML = sample + `<br>${t("plan_note")}`;
+  }
+
   function openDetail(c, keepGran){
     curC = c; curP = (DATA.profiles||{})[c.code] || null;
     disposeProf();
@@ -1266,6 +1349,7 @@
     const sep1=(LANG==="en")?" / ":" / ", pOpen=(LANG==="en")?" (":"（", pClose=(LANG==="en")?")":"）";
     $("#dSub").textContent = `${c.industry||"—"} · ${t("cur_price")} $${f(c.price)} · ${t("composite")} ${f(getVal(c,"final_score"),1)}${pOpen}${t("of_tech")} ${f(c.tech_score,2)}${sep1}${t("of_fund")} ${f(c.fund_score,0)}${sep1}${t("of_prosp")} ${f(c.prosperity_score,0)}${pClose}`;
     $("#dConclusion").textContent = ((LANG==="en"&&c.conclusion_en)?c.conclusion_en:c.conclusion) || "—";
+    renderPlan(c);
 
     const chips=[];
     if(c.sig_channel) chips.push([t("sig_channel"),"tag-strong"]);
@@ -1281,7 +1365,7 @@
     // 风控 / 分析师 卡片
     const rcell=(lab,val,col)=>`<div class="card p-2"><div class="text-[11px] text-slate-400">${lab}</div><div class="text-sm font-semibold mt-0.5" style="${col?`color:${col}`:'color:var(--text)'}">${val}</div></div>`;
     const ddCol = isNum(c.max_dd_pct)? (c.max_dd_pct<=-40?"#f87171":"#fbbf24") : "";
-    const ppl = c.analyst_count!=null ? (LANG==="en"?` (${c.analyst_count.toFixed(0)})`:` (${c.analyst_count.toFixed(0)}人)`) : "";
+    const ppl = isNum(c.analyst_count) ? (LANG==="en"?` (${c.analyst_count.toFixed(0)})`:` (${c.analyst_count.toFixed(0)}人)`) : "";
     $("#dRisk").innerHTML = [
       rcell(t("r_target"), isNum(c.target_price)?`$${c.target_price.toFixed(2)}`:dash, "#38bdf8"),
       rcell(t("r_upside"), isNum(c.upside_pct)?(c.upside_pct>0?"+":"")+c.upside_pct.toFixed(1)+"%":dash, isNum(c.upside_pct)?(c.upside_pct>=0?"#14b8a6":"#f59e0b"):""),
@@ -1299,9 +1383,10 @@
     const cell=(lab,val)=>`<div class="card p-3"><div class="text-xs text-slate-400">${lab}</div><div class="text-base font-semibold text-slate-100 mt-1">${val}</div></div>`;
     const pctileZ = (LANG==="en")?"pctile":"分位", yoyw=(LANG==="en")?"YoY ":"同比";
     $("#dFund").innerHTML = [
-      cell(t("fc_pe"), c.pe_disp || f(c.pe_ttm,1)),
+      cell(t("fc_pe"), escH(c.pe_disp || f(c.pe_ttm,1))),
       cell(t("fc_pe_med"), f(c.pe_industry_median,1)),
-      cell(t("fc_pb")+(isNum(c.pb_pct)?(LANG==="en"?` (${c.pb_pct.toFixed(0)}% ${pctileZ})`:`（${c.pb_pct.toFixed(0)}%分位）`):""), f(c.pb,2)),
+      cell(t("fc_pb")+(isNum(c.pb_pct)?(LANG==="en"?` (${c.pb_pct.toFixed(0)}% ${pctileZ})`:`（${c.pb_pct.toFixed(0)}%分位）`):""),
+           isNum(c.pb)&&c.pb<0 ? `${f(c.pb,2)}<span class="text-[10px] text-amber-400 ml-1">${LANG==="en"?"neg. equity":"负净资产"}</span>` : f(c.pb,2)),
       cell("EPS"+(isNum(c.eps_yoy)?(LANG==="en"?` (${yoyw}${c.eps_yoy>0?'+':''}${c.eps_yoy.toFixed(1)}%)`:`（同比${c.eps_yoy>0?'+':''}${c.eps_yoy.toFixed(1)}%）`):""), f(c.eps,2)),
       cell(t("fc_roe"), isNum(c.roe)?c.roe.toFixed(1)+"%":dash),
       cell(t("fc_rev"), isNum(c.revenue_yoy)?(c.revenue_yoy>0?'+':'')+c.revenue_yoy.toFixed(1)+"%":dash),
@@ -1451,6 +1536,7 @@
       if(!nd || !Array.isArray(nd.candidates)) throw new Error("bad data");
       DATA=nd;
       recomputeScores(); renderOverview(); applyStaticI18n();
+      rebuildIndOptions();
       renderIndustryChart(); updateStrip(); render();
       if(!$("#drawer").classList.contains("translate-x-full")) closeDrawer();
       btn.textContent=t("refresh_ok");

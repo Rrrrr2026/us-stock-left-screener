@@ -28,6 +28,7 @@ from screener import module2_tech as m2
 from screener import module3_fundamentals as m3
 from screener import module4_crossscore as m4
 from screener import module6_profile as m6
+from screener import tradeplan as tp
 from screener import export_data as ex
 
 for _s in (sys.stdout, sys.stderr):
@@ -58,7 +59,7 @@ def run(use_cache=True):
     db.init_db()
     db.clear_run(run_date)
 
-    log.info("拉取股票池 (标普500) ...")
+    log.info("拉取股票池 (全美股, 市值>=$%.0fM) ...", CONFIG["source"]["min_market_cap"] / 1e6)
     universe = ds.get_universe()
     if universe is None or universe.empty:
         log.error("股票池获取失败, 退出")
@@ -81,8 +82,10 @@ def run(use_cache=True):
     if _bench is not None and not _bench.empty:
         # 日期作索引 -> beta() 按日期交集对齐
         bench_close = _bench.set_index(_bench["date"].astype(str))["close"]
+        data_date = str(_bench["date"].iloc[-1])   # 真实数据日期 = 最新交易日收盘
     else:
         bench_close = None
+        data_date = run_date
 
     # ---- 阶段A: 技术扫描 ----
     def _scan(code, name, sector):
@@ -179,6 +182,17 @@ def run(use_cache=True):
         log.info("基本面重试后覆盖: %d/%d",
                  sum(1 for (_, _, f) in results if not _fund_empty(f)), len(results))
 
+    # 板块覆盖: NASDAQ 名单板块质量差(MO被标Health Care等)且有缺失,
+    # 候选股以 Yahoo info 的 GICS 口径板块为准, NASDAQ 仅兜底。
+    # 必须在 板块PE中位 分组之前做, 否则中位数按错误板块分组 (审查发现的排序缺陷)
+    n_sec_fix = 0
+    for (rec, _, f) in results:
+        syf = f.get("sector_yf")
+        if syf and syf != rec.get("industry"):
+            rec["industry"] = syf
+            n_sec_fix += 1
+    log.info("板块修正(Yahoo GICS 覆盖 NASDAQ): %d 只", n_sec_fix)
+
     # 板块PE中位 + 全体PE/PB横截面分位 (使 便宜加分与"分位"列有意义)
     all_pe = sorted([f["pe_ttm"] for (_, _, f) in results if f.get("pe_ttm") and f["pe_ttm"] > 0])
     all_pb = sorted([f["pb"] for (_, _, f) in results if f.get("pb") and f["pb"] > 0])
@@ -209,7 +223,8 @@ def run(use_cache=True):
         fr = m4.cross_score(rec, f, prosperity_map.get(sec))
         scored.append((rec, detail, f, fr))
 
-    scored.sort(key=lambda x: (-(x[3].get("final_score") or -1), x[0]["code"]))
+    scored.sort(key=lambda x: (-(x[3]["final_score"] if x[3].get("final_score") is not None else -1),
+                               x[0]["code"]))
     detail_n = CONFIG["output"]["dashboard_detail_top_n"]
     show_n = CONFIG["output"]["final_top_n"]
     final_records = [x[3] for x in scored]
@@ -226,6 +241,35 @@ def run(use_cache=True):
         db.save_final(run_date, [fr])
         if (idx < detail_n or rec["code"] in shown_dip) and detail:
             db.save_detail(run_date, rec["code"], detail)
+
+    # ---- 阶段C1: 买卖点建议 (Trade Plan) — 对将展示的候选做支撑回踩事件回测 ----
+    # 历史数据走当日缓存(fetch_hist 命中即秒回), 先收集各股事件统计, 再算全池先验, 最后收缩出胜率。
+    plan_targets = final_records[:show_n] + [fr for fr in dip_tail]
+    tech_by_code = {rec["code"]: rec for (rec, _, _, _) in scored}
+    log.info("阶段C1 买卖点回测: %d 只 ...", len(plan_targets))
+    plan_stats = {}
+    for fr in tqdm(plan_targets):
+        try:
+            h = ds.fetch_hist(fr["code"])
+            plan_stats[fr["code"]] = tp.compute_event_stats(h) if h is not None else None
+        except Exception as e:
+            log.debug("买卖点回测 %s 失败: %s", fr["code"], e)
+            plan_stats[fr["code"]] = None
+    prior = tp.pool_prior([s for s in plan_stats.values() if s])
+    log.info("  事件池: 全池 %d 次事件 (先验)", prior.get("n", 0))
+    n_plans = 0
+    for fr in plan_targets:
+        rec = tech_by_code.get(fr["code"])
+        if not rec:
+            continue
+        try:
+            plan = tp.build_trade_plan(rec, plan_stats.get(fr["code"]), prior)
+            if plan:
+                db.save_trade_plan(run_date, fr["code"], plan)
+                n_plans += 1
+        except Exception as e:
+            log.debug("买卖点生成 %s 失败: %s", fr["code"], e)
+    log.info("  买卖点建议: %d 只已生成", n_plans)
 
     # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 最终候选 + 浮现的深跌抄底股 ----
     prof_targets = final_records[:show_n] + dip_tail
@@ -263,7 +307,8 @@ def run(use_cache=True):
                  sum(1 for v in _prof_ok.values() if v), len(prof_targets))
 
     finished = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    db.log_run(run_date, started, finished, n_scanned, len(final_records), selected, "ok")
+    db.log_run(run_date, started, finished, n_scanned, len(final_records), selected, "ok",
+               data_date=data_date)
     log.info("扫描完成: 扫描 %d, 命中 %d", n_scanned, len(final_records))
     ex.write_dashboard_js(run_date)
     ex.write_csv(run_date)

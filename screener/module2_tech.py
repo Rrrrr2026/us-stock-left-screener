@@ -99,7 +99,8 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
         if cands:
             nearest = min(cands, key=lambda p: abs(p - px))
             dist_pivot = (px - nearest) / px * 100.0
-            near_pivot = abs(dist_pivot) <= c["near_pivot_pct"]
+            # 与通道/均线同口径: 现价最多只允许在前低下方1% (再深就是已破位, 不再算"贴近支撑")
+            near_pivot = -1.0 <= dist_pivot <= c["near_pivot_pct"]
             if near_pivot:
                 prox = max(0.0, 1 - abs(dist_pivot) / c["near_pivot_pct"])
                 score += w["pivot"] * (0.5 + 0.5 * prox)
@@ -165,7 +166,7 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
     vol_ratio_calc, vol_confirm_txt = None, ""
     if "volume" in df.columns:
         vol = df["volume"].astype(float)
-        avg20v = vol.tail(20).mean()
+        avg20v = vol.iloc[:-1].tail(20).mean()   # 基准剔除当日, 否则放量被自身稀释(2倍量只显示1.9)
         if avg20v and not np.isnan(avg20v) and avg20v > 0:
             vol_ratio_calc = round(float(vol.iloc[-1] / avg20v), 2)
             shrink = vol_ratio_calc < c.get("vol_shrink_ratio", 0.85)
@@ -174,6 +175,64 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
                 score += w.get("vol_confirm", 0.0) * (0.7 if shrink else 0.5)
                 vol_confirm_txt = "缩量企稳" if shrink else "放量"
     signals["vol"] = vol_confirm_txt
+
+    # --- 7) RSI底背离 (价创新低而RSI低点抬高) — 超跌组的补充确认 ---
+    rsi_div = False
+    if len(close) > look:
+        c_seg2 = close.tail(look).reset_index(drop=True)
+        r_seg = r.tail(look).reset_index(drop=True)
+        if c_seg2.idxmin() >= look - 15:
+            half = look // 2
+            r1, r2 = r_seg.iloc[:half].min(), r_seg.iloc[half:].min()
+            if not (np.isnan(r1) or np.isnan(r2)) and r2 > r1 + 2.0:
+                rsi_div = True
+    if rsi_div:
+        score += w.get("oversold_div", 1.2) * 0.25
+        signals["osc"] = (signals["osc"] or "") + "RSI背离"
+
+    # --- 8) 支撑强度: 主支撑区(±1.5%)近一年被触碰次数, 触碰越多支撑越"厚" ---
+    supp_touches = 0
+    _main_supp = None
+    if support_cands:
+        _main_supp = min(support_cands, key=lambda kv: abs(px - kv[1]))[1]
+        zone_lo, zone_hi = _main_supp * 0.985, _main_supp * 1.015
+        lows_250 = low.tail(250).values
+        last_touch = -10
+        for i2, lv in enumerate(lows_250):
+            if not np.isnan(lv) and zone_lo <= lv <= zone_hi and i2 - last_touch >= 5:
+                supp_touches += 1
+                last_touch = i2
+        if supp_touches >= 2:
+            score += w.get("supp_strength", 0.0) * min(1.0, (supp_touches - 1) / 3.0)
+
+    # --- 9) 趋势规整: MA250上方且MA250上行的回踩(stage-2回调)优于破位下行 ---
+    trend_ok = 0
+    ma250_last = ma_vals.get(250)
+    ma250_last = None if (ma250_last is None or np.isnan(ma250_last)) else float(ma250_last)
+    if ma250_last:
+        ma250_series = close.rolling(250).mean()
+        ma250_prev = float(ma250_series.iloc[-21]) if len(ma250_series) > 21 else np.nan
+        rising = (not np.isnan(ma250_prev)) and ma250_last > ma250_prev
+        if px >= ma250_last and rising:
+            trend_ok = 2
+            score += w.get("trend_regime", 0.0)
+        elif px >= ma250_last * 0.97 or rising:
+            trend_ok = 1
+            score += w.get("trend_regime", 0.0) * 0.5
+
+    # --- 10) 相对强度 vs SPY: 近60日超额收益为正的回调更可能是强势股洗盘 ---
+    rs_60 = None
+    if bench_close is not None and len(bench_close) > 61:
+        st_ret = ind.cumulative_return(close, 60)
+        try:
+            _b = bench_close.astype(float)
+            b_ret = float(_b.iloc[-1] / _b.iloc[-61] - 1.0) * 100.0
+        except Exception:
+            b_ret = np.nan
+        if not (np.isnan(st_ret) or np.isnan(b_ret)):
+            rs_60 = round(st_ret - b_ret, 2)
+            if rs_60 > 0:
+                score += w.get("rel_strength", 0.0) * min(1.0, rs_60 / 10.0)
 
     n_hit = (sum(1 for k in ("channel", "pivot", "ma") if signals[k])
              + (1 if hit_osc else 0) + (1 if vol_confirm_txt else 0))
@@ -186,9 +245,12 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
         dist_support = (px - support_price) / px * 100.0
     breakdown_price = None
     all_support_prices = [p for (_, p) in support_cands] + pivot_levels
-    all_support_prices = [p for p in all_support_prices if p and p <= px * 1.02]
+    # 只看现价下方10%以内的支撑: 破位参考应贴着"正在守的位", 而不是两年前25%下方的老低点
+    all_support_prices = [p for p in all_support_prices if p and px * 0.90 <= p <= px * 1.02]
     if all_support_prices:
         breakdown_price = min(all_support_prices) * 0.97   # 破位 = 最低支撑下方3%
+    elif support_price is not None:
+        breakdown_price = support_price * 0.97
 
     # ---- 52周高低 / 位置 / 近半年涨跌 ----
     win52 = min(250, len(df))
@@ -198,10 +260,12 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
     ret_half = ind.cumulative_return(close, 120)
     ret_1m = ind.cumulative_return(close, 21)     # 近一月涨幅 (≈21个交易日)
 
-    # ---- KDJ ----
+    # ---- KDJ (金叉/死叉 需真实交叉事件, 传前一根K/D判别) ----
     k, d_, j = ind.kdj(high, low, close)
     kk, dd, jj = ind.safe_last(k), ind.safe_last(d_), ind.safe_last(j)
-    kdj_tag = ind.kdj_tag(kk, dd, jj)
+    kk_p = float(k.iloc[-2]) if len(k) > 1 else np.nan
+    dd_p = float(d_.iloc[-2]) if len(d_) > 1 else np.nan
+    kdj_tag = ind.kdj_tag(kk, dd, jj, kk_p, dd_p)
 
     # ---- 风控指标 + 行内sparkline + 斐波那契回撤 ----
     atrp = ind.atr_pct(high, low, close)
@@ -290,6 +354,10 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
         "sig_vol": signals.get("vol", ""),
         "boll_low": _nz(boll_low_val),
         "fib_382": fib["f382"], "fib_500": fib["f500"], "fib_618": fib["f618"],
+        # v2 新增信号 (透明化展示用)
+        "supp_touches": int(supp_touches),
+        "trend_ok": int(trend_ok),
+        "rs_60": _nz(rs_60),
         # 深跌抄底桶 (独立于 tech_score)
         "dip": bool(dip_ok),
         "dip_score": float(dip_score),

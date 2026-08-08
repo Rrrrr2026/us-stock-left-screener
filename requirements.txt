@@ -1,5 +1,7 @@
 # 美股左侧支撑位筛选系统 依赖
-yfinance>=0.2.40
+# yfinance 的 info 字段单位会随版本变 (0.2.54 起 dividendYield 从小数改百分数),
+# 锁定大版本区间, 升级前先核对单位
+yfinance>=1.2,<2
 pandas>=2.0
 numpy>=1.24
 requests>=2.28

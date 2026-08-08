@@ -36,7 +36,8 @@ SECTOR_ETF = {
 CONFIG = {
     "source": {
         "universe_mode": "all_us",      # "all_us"(市值>=下限的全美股) 或 "sp500"(仅标普500)
-        "min_market_cap": 1.0e9,        # all_us 模式下的市值下限 (美元)
+        "min_market_cap": 1.0e8,        # all_us 模式下的市值下限 (美元): $100M
+                                        # (真正的质量闸门是 tech.min_amount_usd 流动性过滤)
         "nasdaq_screener": "https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=10000&offset=0&download=true",
         "sp500_csv": [
             "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv",
@@ -57,7 +58,8 @@ CONFIG = {
         "retry_backoff_sec": 1.0,
         "timeout_sec": 20,
         "max_workers": 0,               # 0 = min(12, CPU*2); yfinance 并发别太高防限频
-        "fund_workers": 5,              # 基本面(.info)并发更低: Yahoo crumb 在高并发下易 401
+        "fund_workers": 4,              # 基本面(.info)并发更低: Yahoo crumb 在高并发下易 401
+                                        # (4113只历史拉完后紧接着打 .info, 5并发曾整批401)
     },
     "sector": {                          # 板块景气 (对应 A股的"行业景气")
         "top_n": 11,                    # 展示全部板块
@@ -83,10 +85,14 @@ CONFIG = {
         "rsi_oversold": 38.0,
         "drawdown_min": 0.18,
         "weights": {"channel": 1.0, "pivot": 1.0, "ma": 0.8,
-                    "oversold_div": 1.2, "drawdown": 0.6, "vol_confirm": 0.5},
+                    "oversold_div": 1.2, "drawdown": 0.6, "vol_confirm": 0.5,
+                    # v2 新增: 支撑强度(历史触碰次数) / 趋势规整(MA250上方的回踩) / 相对强度(vs SPY)
+                    "supp_strength": 0.4, "trend_regime": 0.5, "rel_strength": 0.4},
         "boll_n": 20, "boll_k": 2.0,    # 布林带下轨(额外支撑参考)
         "vol_shrink_ratio": 0.85,       # 支撑处近量/20日均量 < 此值 = 缩量企稳
-        "min_tech_score": 1.0,
+        # v2 权重和 5.1→6.4 后同比例上调, 否则新信号(趋势/相对强度)单独就能凑过门槛,
+        # 会放进一堆没有任何支撑依据的普通回调股
+        "min_tech_score": 1.3,
         "detail_bars": 250,
         # ---- 独立"深跌超卖抄底"桶 (与支撑型左侧互不干扰) ----
         # 这里刻画的是"结构已破的深度价值/抄底"标的: 深跌 + 超卖 + 逼近52周低点。
@@ -105,12 +111,13 @@ CONFIG = {
         "roe_good": 12.0, "roe_excellent": 18.0,
         "pe_low_percentile": 30.0, "pe_high_percentile": 80.0,
         "debt_ratio_warn": 70.0, "netprofit_yoy_good": 0.0,
-        "strong_left_tech": 2.0, "strong_left_fund": 60.0,
+        # 技术权重从 5.1 加到 6.4 (新增3个信号), 强左侧门槛按占比同步上调 (2.0/5.1≈2.5/6.4)
+        "strong_left_tech": 2.5, "strong_left_fund": 60.0,
         "strong_left_prosperity": 60.0, "fund_weak_threshold": 40.0,
     },
     "output": {
-        "final_top_n": 200,
-        "fund_top_n": 300,
+        "final_top_n": 250,             # 股票池扩大 ~2倍, 主榜同步扩容
+        "fund_top_n": 400,
         "dashboard_detail_top_n": 150,
         "dip_top_n": 40,                # 深跌抄底桶最多并入/展示的只数 (上限, 防止灌进一堆刀)
     },

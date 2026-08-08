@@ -20,8 +20,9 @@ from .config import DASHBOARD_DATA_JS, DATA_DIR, CONFIG
 
 log = logging.getLogger("ashare.export")
 
-DISCLAIMER = ("本系统仅对美股(标普500)做技术/基本面数据的自动化整理与形态筛选, 不构成任何投资建议。"
+DISCLAIMER = ("本系统仅对美股(全美股, 市值≥$100M)做技术/基本面数据的自动化整理与形态筛选, 不构成任何投资建议。"
               "“左侧买入”是在下跌中、支撑确认前进场, 风险天然更高(可能继续下跌或破位)。"
+              "买卖点建议与胜率为历史回测统计, 不构成对未来的保证。"
               "价格单位为美元(USD)。所有标的需人工复核, 使用者自负盈亏与风控。")
 
 # 主表中文表头 (顺序; 换手率/量比是A股概念, 美股换成 日均额$/股息率)
@@ -54,6 +55,8 @@ def build_payload(run_date: str | None = None) -> dict:
     fund = _index_by_code(db.fetch_table("fundamental", run_date))
     finals = db.fetch_table("final_rank", run_date)
     details_rows = db.fetch_table("stock_detail", run_date)
+    plans = {r["code"]: _loads(r.get("plan_json"), default=None)
+             for r in db.fetch_table("trade_plan", run_date)}
 
     # 行业榜 (按景气分降序)
     industries_sorted = sorted(industries, key=lambda r: (r.get("prosperity_score") or -1),
@@ -104,22 +107,27 @@ def build_payload(run_date: str | None = None) -> dict:
             "eps": f.get("eps"), "eps_yoy": f.get("eps_yoy"), "roe": f.get("roe"),
             "revenue_yoy": f.get("revenue_yoy"), "netprofit_yoy": f.get("netprofit_yoy"),
             "gross_margin": f.get("gross_margin"), "debt_ratio": f.get("debt_ratio"),
-            "roe_trend": _loads(f.get("roe_trend_json")),
-            "roe_trend_q": _loads(f.get("roe_trend_q_json")),
-            "fund_flags": _loads(f.get("fund_flags_json")),
+            "roe_trend": _loads(f.get("roe_trend_json"), default=[]),
+            "roe_trend_q": _loads(f.get("roe_trend_q_json"), default=[]),
+            "fund_flags": _loads(f.get("fund_flags_json"), default=[]),
             # 新增: sparkline / 风控 / 量能 / 斐波那契 / 分析师 / 连续上榜
             "spark": _loads(t.get("spark_json"), default=[]),
             "atr_pct": t.get("atr_pct"), "max_dd_pct": t.get("max_dd_pct"),
             "beta": t.get("beta"), "vol_ratio_calc": t.get("vol_ratio_calc"),
             "sig_vol": t.get("sig_vol"), "boll_low": t.get("boll_low"),
+            "supp_touches": t.get("supp_touches"), "trend_ok": t.get("trend_ok"),
+            "rs_60": t.get("rs_60"), "fcf_yield": f.get("fcf_yield"),
             "fib_382": t.get("fib_382"), "fib_500": t.get("fib_500"), "fib_618": t.get("fib_618"),
             "target_price": f.get("target_price"), "analyst_rating": f.get("analyst_rating"),
             "analyst_count": f.get("analyst_count"), "upside_pct": f.get("upside_pct"),
             "streak": appear.get(code, 1),
+            # 买卖点建议 (入场区/止损/目标梯子+胜率), 详情弹窗渲染
+            "plan": plans.get(code),
         }
         candidates.append(row)
 
-    candidates.sort(key=lambda r: (-(r.get("final_score") or -1), r.get("code") or ""))
+    candidates.sort(key=lambda r: (-(r["final_score"] if r.get("final_score") is not None else -1),
+                                   r.get("code") or ""))
     top_n = CONFIG["output"]["final_top_n"]
     head = candidates[:top_n]                                   # 支撑型主榜(展示上限)
     # 深跌抄底桶: 支撑分低会被 final_top_n 截掉, 这里把落榜的 dip 候选按 dip_score 补回来
@@ -140,6 +148,7 @@ def build_payload(run_date: str | None = None) -> dict:
     payload = {
         "meta": {
             "run_date": run_date,
+            "data_date": runlog.get("data_date") or run_date,   # 真实行情数据日期(最新收盘)
             "updated_at": runlog.get("finished_at") or run_date,
             "n_scanned": runlog.get("n_scanned"),
             "n_hit": len(candidates),   # 与主表展示条数一致
@@ -181,9 +190,11 @@ def write_csv(run_date: str | None = None) -> str:
 
 
 def _loads(s, default=None):
+    """default 就是 default —— 传 None 必须真的返回 None
+    (前端用 if(!p) 判断 plan 缺失, [] 在 JS 里是 truthy, 会渲染出一张空卡)。"""
     if not s:
-        return default if default is not None else []
+        return default
     try:
         return json.loads(s)
     except Exception:
-        return default if default is not None else []
+        return default

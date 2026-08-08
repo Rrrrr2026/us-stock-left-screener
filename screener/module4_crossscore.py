@@ -20,7 +20,7 @@ _TECH_MAX = sum(CONFIG["tech"]["weights"].values())
 
 
 def _fund_score(f: dict) -> float:
-    """基本面 0-100 评分。"""
+    """基本面 0-100 评分。数据覆盖不足会折价, 避免"全缺失=中性50"反而排到真实弱基本面之上。"""
     cc = CONFIG["cross"]
     s = 50.0
     roe = f.get("roe")
@@ -53,6 +53,22 @@ def _fund_score(f: dict) -> float:
     gm = f.get("gross_margin")
     if gm is not None and gm >= 40:
         s += 5
+    # FCF收益率: 现金流质量加分 (估值便宜且真金白银)
+    fcf_y = f.get("fcf_yield")
+    if fcf_y is not None:
+        if fcf_y >= 6:
+            s += 6
+        elif fcf_y >= 3:
+            s += 3
+        elif fcf_y < 0:
+            s -= 4
+    # 数据覆盖折价: 核心字段全缺 → 上限45并扣5; 只有1个 → 扣3 (信息不足不给中性满贯)
+    core = [f.get(k) for k in ("roe", "pe_ttm", "netprofit_yoy", "gross_margin", "debt_ratio")]
+    n_core = sum(1 for v in core if v is not None)
+    if n_core == 0:
+        s = min(s, 45.0) - 5.0
+    elif n_core == 1:
+        s -= 3.0
     return round(clamp(s, 0.0, 100.0), 1)
 
 
@@ -195,6 +211,10 @@ def _conclusion_text(tech_rec: dict, f: dict, tag: str) -> str:
 def cross_score(tech_rec: dict, fund: dict, prosperity_score: float | None) -> dict:
     """合并技术记录 + 基本面 + 景气, 返回最终 final_rank 记录 (英文键)。"""
     cc = CONFIG["cross"]
+    # NaN 景气分会污染 final_score (NaN 能通过 is not None 检查), 统一归到"未知"
+    if prosperity_score is not None and (isinstance(prosperity_score, float)
+                                         and np.isnan(prosperity_score)):
+        prosperity_score = None
     tech_score = float(tech_rec.get("tech_score") or 0.0)
     tech_norm = clamp(tech_score / _TECH_MAX * 100.0, 0.0, 100.0) if _TECH_MAX else 0.0
     fund_score = _fund_score(fund)
