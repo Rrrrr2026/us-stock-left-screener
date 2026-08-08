@@ -43,6 +43,7 @@ def pull_fundamentals(code: str, sector: str | None = None,
         "fcf_yield": None, "sector_yf": None,
         "ni_ttm_yoy": None, "ni_parent_ttm_yoy": None, "ni_basis": None,
         "ni_parent_basis": None, "growth_quality": None,
+        "ni_qoq": [], "ni_parent_qoq": [], "ni_q_labels": [],
         "fund_flags": [],
     }
     info = ds.fetch_info(code)
@@ -114,6 +115,9 @@ def pull_fundamentals(code: str, sector: str | None = None,
     res["ni_parent_ttm_yoy"], res["ni_parent_basis"] = _tiered_yoy(
         qni.get("ni_parent"), qni.get("fy_ni_parent"), qni.get("q_dates"), qni.get("fy_dates"))
     res["growth_quality"] = _growth_quality(qni)
+    # 逐季环比序列 (最近4个, 旧→新) — Yahoo 仅给~5个季度, 同比×4 无数据支撑, 环比×4 可行
+    res["ni_qoq"], res["ni_q_labels"] = _qoq_series(qni.get("ni"), qni.get("q_dates"))
+    res["ni_parent_qoq"], _ = _qoq_series(qni.get("ni_parent"), qni.get("q_dates"))
 
     # ROE 多年趋势 (年度财报: 净利润/股东权益; 失败静默为 []) + 季度TTM口径
     try:
@@ -192,6 +196,29 @@ def _tiered_yoy(qv: list | None, fyv: list | None,
             if y is not None:
                 return y, "年度"
     return None, None
+
+
+def _q_label(d: str | None) -> str | None:
+    """'2026-06' -> '26Q2' (按月份粗归到自然季)。"""
+    try:
+        y, m = d.split("-")
+        return f"{y[2:]}Q{(int(m) - 1) // 3 + 1}"
+    except Exception:
+        return d
+
+
+def _qoq_series(qv: list | None, q_dates: list | None, k: int = 4):
+    """相邻季度环比增速序列 (最近k个, 旧→新) + 对应季度标签。
+    相邻两期间隔>120天(缺季/半年报)的环比不成立, 记 None。"""
+    qv = qv or []
+    q_dates = q_dates or []
+    out, labels = [], []
+    for i in range(1, len(qv)):
+        g = _gap_days(q_dates[i - 1], q_dates[i]) if len(q_dates) == len(qv) else 92
+        val = _yoy_pct(qv[i], qv[i - 1]) if (g is not None and g <= 120) else None
+        out.append(val)
+        labels.append(_q_label(q_dates[i]) if i < len(q_dates) else None)
+    return out[-k:], labels[-k:]
 
 
 def _growth_quality(qni: dict) -> str | None:

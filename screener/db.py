@@ -112,7 +112,9 @@ def _migrate(conn):
                         ("ni_basis", "TEXT"), ("ni_parent_basis", "TEXT"),
                         ("growth_quality", "TEXT"),
                         ("dominance_disp", "TEXT"), ("dom_rank", "INTEGER"),
-                        ("dom_n", "INTEGER"), ("dom_share", "REAL")],
+                        ("dom_n", "INTEGER"), ("dom_share", "REAL"),
+                        ("ni_qoq_json", "TEXT"), ("ni_parent_qoq_json", "TEXT"),
+                        ("ni_q_labels_json", "TEXT")],
         "final_rank": [("conclusion_en", "TEXT"),
                        ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT"),
                        ("coil", "INTEGER"), ("coil_score", "REAL"), ("coil_confirm", "TEXT")],
@@ -206,6 +208,9 @@ def save_fundamental(run_date: str, code: str, f: dict):
         "roe_trend_json": json.dumps(f.get("roe_trend", []), ensure_ascii=False),
         "roe_trend_q_json": json.dumps(f.get("roe_trend_q", []), ensure_ascii=False),
         "fund_flags_json": json.dumps(f.get("fund_flags", []), ensure_ascii=False),
+        "ni_qoq_json": json.dumps(f.get("ni_qoq", []), ensure_ascii=False),
+        "ni_parent_qoq_json": json.dumps(f.get("ni_parent_qoq", []), ensure_ascii=False),
+        "ni_q_labels_json": json.dumps(f.get("ni_q_labels", []), ensure_ascii=False),
     })
     _upsert("fundamental", [row])
 
