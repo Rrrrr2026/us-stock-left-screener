@@ -26,14 +26,18 @@ DISCLAIMER = ("本系统仅对美股(全美股, 市值≥$100M)做技术/基本�
               "价格单位为美元(USD)。所有标的需人工复核, 使用者自负盈亏与风控。")
 
 # 主表中文表头 (顺序; 换手率/量比是A股概念, 美股换成 日均额$/股息率)
+# 市场地位 = 细分行业内市值排名/份额 (垄断力代理); 近四季增速为分层口径(TTM/单季/年度)
 MAIN_COLUMNS = [
     ("code", "代码"), ("name", "名称"), ("industry", "所属板块"),
+    ("dominance_disp", "市场地位"), ("ni_ttm_yoy", "近四季净利同比%"),
+    ("ni_parent_ttm_yoy", "近四季归母同比%"), ("growth_quality", "增长持续性"),
+    ("pe_disp", "市盈率TTM(分位)"),
     ("tag", "结论标签"), ("streak", "连续上榜"), ("final_score", "综合分"), ("tech_score", "技术分"),
     ("fund_score", "基本面分"), ("price", "现价$"), ("spark", "近期走势"), ("dist_support_pct", "距支撑%"),
     ("support_disp", "关键支撑位"), ("breakdown_price", "破位位"),
     ("pos_52w_pct", "52周位置%"), ("ret_1m_pct", "近一月涨%"), ("ret_half_year_pct", "近半年涨跌%"),
     ("avg_amt20_yi", "日均额$M"), ("dividend_yield", "股息率%"), ("kdj_tag", "KDJ"),
-    ("pe_disp", "市盈率TTM(分位)"), ("pb", "市净率"), ("eps", "EPS"), ("roe", "ROE"),
+    ("pb", "市净率"), ("eps", "EPS"), ("roe", "ROE"),
     ("upside_pct", "距目标价%"),
 ]
 
@@ -117,6 +121,13 @@ def build_payload(run_date: str | None = None) -> dict:
             "sig_vol": t.get("sig_vol"), "boll_low": t.get("boll_low"),
             "supp_touches": t.get("supp_touches"), "trend_ok": t.get("trend_ok"),
             "rs_60": t.get("rs_60"), "fcf_yield": f.get("fcf_yield"),
+            "box_hi": t.get("box_hi"), "box_lo": t.get("box_lo"),
+            # 市场地位 / 近四季增速 / 增长持续性
+            "dominance_disp": f.get("dominance_disp"), "dom_rank": f.get("dom_rank"),
+            "dom_n": f.get("dom_n"), "dom_share": f.get("dom_share"),
+            "ni_ttm_yoy": f.get("ni_ttm_yoy"), "ni_parent_ttm_yoy": f.get("ni_parent_ttm_yoy"),
+            "ni_basis": f.get("ni_basis"), "ni_parent_basis": f.get("ni_parent_basis"),
+            "growth_quality": f.get("growth_quality"),
             "fib_382": t.get("fib_382"), "fib_500": t.get("fib_500"), "fib_618": t.get("fib_618"),
             "target_price": f.get("target_price"), "analyst_rating": f.get("analyst_rating"),
             "analyst_count": f.get("analyst_count"), "upside_pct": f.get("upside_pct"),
@@ -135,7 +146,10 @@ def build_payload(run_date: str | None = None) -> dict:
     seen = {r.get("code") for r in head}
     dip_extra = sorted((r for r in candidates[top_n:] if r.get("dip")),
                        key=lambda r: -(r.get("dip_score") or 0.0))[:CONFIG["output"].get("dip_top_n", 40)]
-    candidates = head + [r for r in dip_extra if r.get("code") not in seen]
+    coil_extra = sorted((r for r in candidates[top_n:] if r.get("coil") and not r.get("dip")),
+                        key=lambda r: -(r.get("coil_score") or 0.0))[:CONFIG["output"].get("coil_top_n", 40)]
+    extras = [r for r in dip_extra + coil_extra if r.get("code") not in seen]
+    candidates = head + extras
 
     details = {}
     for dr in details_rows:
@@ -172,6 +186,40 @@ def write_dashboard_js(run_date: str | None = None) -> str:
         f.write(js)
     log.info("仪表盘数据已写出: %s (%d 候选)", DASHBOARD_DATA_JS, len(payload["candidates"]))
     return DASHBOARD_DATA_JS
+
+
+HISTORY_DIR = os.path.join(os.path.dirname(DASHBOARD_DATA_JS), "history")
+
+
+def write_history_snapshot(run_date: str | None = None) -> str | None:
+    """把某个 run_date 的候选榜写成"瘦身版"历史快照 (无K线明细/深度档案,
+    体积 ~1MB), 供前端的日期切换器回看历史扫描结果:
+      dashboard/history/day_<date>.json  +  dashboard/history/index.json (可用日期清单)
+    auto_update.bat 会把 history/ 整目录同步到 docs/ 发布。"""
+    payload = build_payload(run_date)
+    rd = payload["meta"].get("run_date")
+    if not rd:
+        return None
+    slim = {"meta": payload["meta"], "industries": payload["industries"],
+            "candidates": payload["candidates"], "columns": payload["columns"]}
+    os.makedirs(HISTORY_DIR, exist_ok=True)
+    path = os.path.join(HISTORY_DIR, f"day_{rd}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(slim, f, ensure_ascii=False)
+    # 更新清单 (按日期倒序, 只保留 history_days 天)
+    keep = CONFIG["output"].get("history_days", 90)
+    dates = sorted({fn[4:14] for fn in os.listdir(HISTORY_DIR)
+                    if fn.startswith("day_") and fn.endswith(".json")}, reverse=True)
+    for stale in dates[keep:]:
+        try:
+            os.remove(os.path.join(HISTORY_DIR, f"day_{stale}.json"))
+        except OSError:
+            pass
+    dates = dates[:keep]
+    with open(os.path.join(HISTORY_DIR, "index.json"), "w", encoding="utf-8") as f:
+        json.dump({"dates": dates}, f)
+    log.info("历史快照已写出: %s (%d 天可回看)", path, len(dates))
+    return path
 
 
 def write_csv(run_date: str | None = None) -> str:

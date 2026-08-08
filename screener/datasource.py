@@ -157,8 +157,8 @@ def get_universe() -> pd.DataFrame | None:
     """返回 code, name, sector 的 DataFrame。
     模式 all_us: 市值>=下限的全美股 (NASDAQ 官方筛选器); sp500: 仅标普500。"""
     mode = CONFIG["source"]["universe_mode"]
-    # 市值下限进缓存键: 改配置立即生效, 不被当日旧名单缓存挡住
-    key = _cache_key("universe", mode, CONFIG["source"]["min_market_cap"],
+    # 市值下限+schema版本进缓存键: 改配置/改列结构立即生效, 不被当日旧名单缓存挡住
+    key = _cache_key("universe", mode, CONFIG["source"]["min_market_cap"], "v3",
                      dt.date.today().isoformat())
     c = _cache_load(key)
     if c is not None:
@@ -217,7 +217,8 @@ def _universe_all_us() -> pd.DataFrame | None:
         sym = str(row.get("symbol", "")).strip()
         if not _valid_ticker(sym):
             continue
-        if _clean_mcap(row.get("marketCap")) < minmc:
+        mcap = _clean_mcap(row.get("marketCap"))
+        if mcap < minmc:
             continue
         name = str(row.get("name", "")).strip()
         if _NON_COMMON_RE.search(name):     # 剔除挂牌债券/优先股/权证/SPAC单位
@@ -225,11 +226,15 @@ def _universe_all_us() -> pd.DataFrame | None:
         sec_raw = str(row.get("sector", "")).strip()
         if sec_raw == "Miscellaneous":       # NASDAQ 的杂项与空板块统一记 "" (未知, 待Yahoo覆盖)
             sec_raw = ""
-        out.append((sym, name, _NASDAQ_TO_GICS.get(sec_raw, sec_raw)))
+        # 细分行业 + 市值: 用于"市场地位"(行业内市值排名/份额, 作垄断力代理指标)
+        ind_raw = str(row.get("industry", "")).strip()
+        if ind_raw in ("Miscellaneous", "Blank Checks"):
+            ind_raw = ""
+        out.append((sym, name, _NASDAQ_TO_GICS.get(sec_raw, sec_raw), ind_raw, mcap))
     if not out:
         return None
     log.info("全美股(市值>=$%.0fM): %d 只", minmc / 1e6, len(out))
-    return pd.DataFrame(out, columns=["code", "name", "sector"])
+    return pd.DataFrame(out, columns=["code", "name", "sector", "nasdaq_industry", "mcap"])
 
 
 def _universe_from_csv():
@@ -456,6 +461,63 @@ def fetch_roe_trend_q(code: str) -> list:
     except Exception as e:
         log.debug("fetch_roe_trend_q %s 失败: %s", code, e)
         out = []
+    if out:
+        _cache_save(key, out)
+    return out
+
+
+def fetch_quarterly_ni(code: str) -> dict:
+    """季度+年度 净利润 与 归母净利润 (百万美元) — 用于近四季增速与增长持续性。
+    返回 {"q_dates":[...], "ni":[...], "ni_parent":[...],
+          "fy_dates":[...], "fy_ni":[...], "fy_ni_parent":[...]} (时间升序, 缺值为None)。
+    美股口径: Net Income Common Stockholders ≈ 归母净利润。"""
+    key = _cache_key("qni", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, dict) else {}
+    out = {}
+    _NI = ("Net Income",)
+    _NIP = ("Net Income Common Stockholders", "Net Income Attributable To Parent Company")
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        qinc = _retry(lambda: tk.quarterly_income_stmt)
+        inc = _retry(lambda: tk.income_stmt)
+
+        def _pairs(df, names):
+            row = _stmt_row(df, names)
+            if row is None:
+                return []
+            pts = []
+            for col, v in row.items():
+                try:
+                    v = float(v)
+                except Exception:
+                    v = None
+                if v is not None and pd.isna(v):
+                    v = None
+                pts.append((pd.Timestamp(col), None if v is None else round(v / 1e6, 1)))
+            pts.sort(key=lambda t: t[0])
+            return pts
+
+        q_ni = _pairs(qinc, _NI)
+        q_nip = _pairs(qinc, _NIP)
+        if q_ni:
+            dates = [d for (d, _) in q_ni]
+            nip_by = {d: v for (d, v) in q_nip}
+            out["q_dates"] = [d.strftime("%Y-%m") for d in dates]
+            out["ni"] = [v for (_, v) in q_ni]
+            out["ni_parent"] = [nip_by.get(d) for d in dates]
+        fy_ni = _pairs(inc, _NI)
+        fy_nip = _pairs(inc, _NIP)
+        if fy_ni:
+            fdates = [d for (d, _) in fy_ni]
+            fnip_by = {d: v for (d, v) in fy_nip}
+            out["fy_dates"] = [d.strftime("%Y-%m") for d in fdates]
+            out["fy_ni"] = [v for (_, v) in fy_ni]
+            out["fy_ni_parent"] = [fnip_by.get(d) for d in fdates]
+    except Exception as e:
+        log.debug("fetch_quarterly_ni %s 失败: %s", code, e)
+        out = {}
     if out:
         _cache_save(key, out)
     return out

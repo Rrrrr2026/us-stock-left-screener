@@ -87,7 +87,10 @@ def _tag(tech_score: float, fund_score: float, prosperity: float) -> str:
 _TAG_EN = {"✅ 强左侧": "✅ Strong Left",
            "⚠️ 技术好但基本面弱": "⚠️ Tech-strong, Weak Fundamentals",
            "🔎 观察": "🔎 Watch",
-           "🪸 深跌抄底": "🪸 Deep-Dip Bottom-Fish"}
+           "🪸 深跌抄底": "🪸 Deep-Dip Bottom-Fish",
+           "🚀 蓄势待发": "🚀 Coiled to Launch"}
+_COIL_CONFIRM_EN = {"波动挤压": "volatility squeeze", "MACD走强": "MACD strengthening",
+                    "KDJ多头": "KDJ bullish", "站上MA60": "above MA60", "放量上攻": "volume thrust"}
 _DIP_CONFIRM_EN = {"底背离": "bullish divergence", "缩柱": "shrinking MACD histogram",
                    "金叉": "KDJ golden cross", "放量": "volume spike"}
 _OSC_EN = {"超卖": "oversold", "缩柱": "shrinking MACD histogram", "底背离": "bullish divergence"}
@@ -113,6 +116,8 @@ def _conclusion_text_en(tech_rec: dict, f: dict, tag: str) -> str:
     """英文一句话结论 (与中文版结构对应)。"""
     if tag.startswith("🪸"):
         return _dip_conclusion_en(tech_rec, f, tag)
+    if tag.startswith("🚀"):
+        return _coil_conclusion_en(tech_rec, f, tag)
     sigs = []
     if tech_rec.get("sig_channel"):
         sigs.append("near the rising-channel lower band")
@@ -179,10 +184,44 @@ def _dip_conclusion_en(tech_rec: dict, f: dict, tag: str) -> str:
     return "; ".join(parts) + "."
 
 
+def _coil_conclusion(tech_rec: dict, f: dict, tag: str) -> str:
+    """蓄势待发桶的中文一句话结论: 深回调 + 横盘收敛 + 突破前兆。"""
+    parts = [tag + "：深回调后横盘收敛、贴近箱体上沿"]
+    conf = tech_rec.get("coil_confirm")
+    parts.append("突破前兆：" + conf if conf else "尚无突破确认(等待放量突破箱体上沿)")
+    if tech_rec.get("support_price") is not None:
+        sp = tech_rec.get("support_label") or "支撑"
+        parts.append(f"下方支撑≈{tech_rec['support_price']}({sp})")
+    if tech_rec.get("breakdown_price") is not None:
+        parts.append(f"破位参考{tech_rec['breakdown_price']}(跌破=整理失败)")
+    flags = f.get("fund_flags") or []
+    if flags:
+        parts.append("基本面：" + "、".join(flags))
+    return "；".join(parts) + "。"
+
+
+def _coil_conclusion_en(tech_rec: dict, f: dict, tag: str) -> str:
+    parts = [_TAG_EN.get(tag, tag) + ": tight consolidation near the top of its base after a deep pullback"]
+    conf = tech_rec.get("coil_confirm") or ""
+    conf_en = ", ".join(v for k, v in _COIL_CONFIRM_EN.items() if k in conf)
+    parts.append("breakout signals: " + conf_en if conf_en
+                 else "no breakout confirmation yet (wait for a volume push through the range high)")
+    if tech_rec.get("support_price") is not None:
+        parts.append(f"support below ≈ {tech_rec['support_price']} ({_supp_en(tech_rec.get('support_label'))})")
+    if tech_rec.get("breakdown_price") is not None:
+        parts.append(f"breakdown ref {tech_rec['breakdown_price']} (a break below = failed base)")
+    flags = f.get("fund_flags") or []
+    if flags:
+        parts.append("fundamentals: " + ", ".join(_FLAG_EN.get(x, x) for x in flags))
+    return "; ".join(parts) + "."
+
+
 def _conclusion_text(tech_rec: dict, f: dict, tag: str) -> str:
     """一句话中文结论: 哪些信号命中 + 关键支撑 + 破位参考 + 基本面亮点/瑕疵。"""
     if tag.startswith("🪸"):
         return _dip_conclusion(tech_rec, f, tag)
+    if tag.startswith("🚀"):
+        return _coil_conclusion(tech_rec, f, tag)
     sigs = []
     if tech_rec.get("sig_channel"):
         sigs.append("贴近上升通道下轨")
@@ -231,6 +270,9 @@ def cross_score(tech_rec: dict, fund: dict, prosperity_score: float | None) -> d
     # 已是 ✅强左侧 / ⚠️技术好但基本面弱 的(确有支撑结构)保留原标签, 不抢标。
     if tech_rec.get("dip") and tag == "🔎 观察":
         tag = "🪸 深跌抄底"
+    # 蓄势待发: 同理只接管"观察"; 若同时命中 dip(极少见), dip 优先
+    elif tech_rec.get("coil") and tag == "🔎 观察":
+        tag = "🚀 蓄势待发"
     text = _conclusion_text(tech_rec, fund, tag)
     text_en = _conclusion_text_en(tech_rec, fund, tag)
 
@@ -243,6 +285,9 @@ def cross_score(tech_rec: dict, fund: dict, prosperity_score: float | None) -> d
         "dip": bool(tech_rec.get("dip")),
         "dip_score": round(float(tech_rec.get("dip_score") or 0.0), 3),
         "dip_confirm": tech_rec.get("dip_confirm") or "",
+        "coil": bool(tech_rec.get("coil")),
+        "coil_score": round(float(tech_rec.get("coil_score") or 0.0), 3),
+        "coil_confirm": tech_rec.get("coil_confirm") or "",
         "tech_score": round(tech_score, 3),
         "tech_norm": round(tech_norm, 1),
         "fund_score": fund_score,

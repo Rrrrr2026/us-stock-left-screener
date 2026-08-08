@@ -101,13 +101,21 @@ def _migrate(conn):
                       ("sig_vol", "TEXT"), ("boll_low", "REAL"), ("fib_382", "REAL"),
                       ("fib_500", "REAL"), ("fib_618", "REAL"),
                       ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT"),
-                      ("supp_touches", "INTEGER"), ("trend_ok", "INTEGER"), ("rs_60", "REAL")],
+                      ("supp_touches", "INTEGER"), ("trend_ok", "INTEGER"), ("rs_60", "REAL"),
+                      ("coil", "INTEGER"), ("coil_score", "REAL"), ("coil_confirm", "TEXT"),
+                      ("box_hi", "REAL"), ("box_lo", "REAL")],
         "fundamental": [("target_price", "REAL"), ("analyst_rating", "TEXT"),
                         ("analyst_count", "REAL"), ("upside_pct", "REAL"),
                         ("roe_trend_q_json", "TEXT"),
-                        ("fcf_yield", "REAL"), ("sector_yf", "TEXT")],
+                        ("fcf_yield", "REAL"), ("sector_yf", "TEXT"),
+                        ("ni_ttm_yoy", "REAL"), ("ni_parent_ttm_yoy", "REAL"),
+                        ("ni_basis", "TEXT"), ("ni_parent_basis", "TEXT"),
+                        ("growth_quality", "TEXT"),
+                        ("dominance_disp", "TEXT"), ("dom_rank", "INTEGER"),
+                        ("dom_n", "INTEGER"), ("dom_share", "REAL")],
         "final_rank": [("conclusion_en", "TEXT"),
-                       ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT")],
+                       ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT"),
+                       ("coil", "INTEGER"), ("coil_score", "REAL"), ("coil_confirm", "TEXT")],
         "run_log": [("data_date", "TEXT")],
     }
     for table, cols in want.items():
@@ -190,7 +198,9 @@ def save_fundamental(run_date: str, code: str, f: dict):
         "dividend_yield", "eps", "eps_yoy", "roe", "revenue_yoy", "netprofit_yoy",
         "gross_margin", "debt_ratio",
         "target_price", "analyst_rating", "analyst_count", "upside_pct",
-        "fcf_yield", "sector_yf")}
+        "fcf_yield", "sector_yf",
+        "ni_ttm_yoy", "ni_parent_ttm_yoy", "ni_basis", "ni_parent_basis", "growth_quality",
+        "dominance_disp", "dom_rank", "dom_n", "dom_share")}
     row.update({
         "run_date": run_date, "code": code,
         "roe_trend_json": json.dumps(f.get("roe_trend", []), ensure_ascii=False),

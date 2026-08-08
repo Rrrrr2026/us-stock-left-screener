@@ -317,6 +317,61 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
             dip_score = round(dw["depth"] * f_depth + dw["oversold"] * f_os
                               + dw["nearlow"] * f_near + dw["confirm"] * f_conf, 3)
 
+    # ---- 独立"蓄势待发"桶 (🚀): 深回调后横盘收敛 + 贴近箱体上沿 + 突破前兆 ----
+    # 与 dip 桶同构: 不进 tech_score, 只作独立标签与桶内排序。
+    ccfg = c.get("coil") or {}
+    coil_ok, coil_score = False, 0.0
+    coil_confirm = ""
+    box_hi = box_lo = 0.0
+    if ccfg and len(close) >= 260:
+        cb = int(ccfg.get("consol_bars", 30))
+        box_hi = float(high.tail(cb).max())
+        box_lo = float(low.tail(cb).min())
+        box_mid = (box_hi + box_lo) / 2.0
+        range_pct = (box_hi - box_lo) / box_mid * 100.0 if box_mid > 0 else 999.0
+        hi250 = float(high.tail(250).max())
+        # 大回调在先: 箱体上沿仍比250日高点低足够多, 且高点不是刚形成的
+        deep_pull = hi250 > 0 and (hi250 - box_hi) / hi250 >= ccfg.get("drawdown_min", 0.25)
+        try:
+            bars_since_high = (len(df) - 1) - int(high.tail(250).idxmax())
+        except Exception:
+            bars_since_high = 0
+        aged = bars_since_high >= int(ccfg.get("bars_since_high_min", 40))
+        tight = range_pct <= ccfg.get("range_max_pct", 16.0)
+        near_hi = (box_hi > 0 and px >= box_mid
+                   and (box_hi - px) / box_hi * 100.0 <= ccfg.get("near_high_pct", 5.0))
+        if deep_pull and aged and tight and near_hi:
+            # 布林带宽挤压分位 (近一年): 越低说明波动被压得越扁, 突破弹性越大
+            bw = (close.rolling(20).std() * 4.0) / close.rolling(20).mean()
+            bw_hist = bw.tail(250).dropna()
+            bw_now = ind.safe_last(bw)
+            bw_pct = (float((bw_hist <= bw_now).mean() * 100.0)
+                      if (not np.isnan(bw_now) and len(bw_hist) > 60) else None)
+            squeeze = bw_pct is not None and bw_pct <= ccfg.get("squeeze_pctile", 40.0)
+            coil_ok = True
+            confirms = []
+            if squeeze:
+                confirms.append("波动挤压")
+            if hist_now > hist_prev:
+                confirms.append("MACD走强")
+            if not np.isnan(kk) and not np.isnan(dd) and kk > dd:
+                confirms.append("KDJ多头")
+            ma60_v = ma_vals.get(60)
+            if ma60_v is not None and not np.isnan(ma60_v) and px >= float(ma60_v):
+                confirms.append("站上MA60")
+            if (vol_ratio_calc is not None and vol_ratio_calc >= 1.3
+                    and px >= float(close.iloc[-2])):
+                confirms.append("放量上攻")
+            coil_confirm = "/".join(confirms)
+            cw = ccfg.get("weights", {})
+            f_tight = max(0.0, 1.0 - range_pct / max(ccfg.get("range_max_pct", 16.0), 1e-6))
+            f_near = max(0.0, 1.0 - ((box_hi - px) / box_hi * 100.0)
+                         / max(ccfg.get("near_high_pct", 5.0), 1e-6)) if box_hi > 0 else 0.0
+            f_sq = (1.0 - bw_pct / 100.0) if bw_pct is not None else 0.3
+            f_conf = len(confirms) / 5.0
+            coil_score = round(cw.get("tight", 1.0) * f_tight + cw.get("near_high", 1.0) * f_near
+                               + cw.get("squeeze", 1.0) * f_sq + cw.get("confirm", 0.8) * f_conf, 3)
+
     record = {
         "code": code, "name": name,
         "price": round(px, 2),
@@ -362,6 +417,12 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
         "dip": bool(dip_ok),
         "dip_score": float(dip_score),
         "dip_confirm": dip_confirm,
+        # 蓄势待发桶 (独立于 tech_score); 箱体上下沿供突破型买卖点与前端展示
+        "coil": bool(coil_ok),
+        "coil_score": float(coil_score),
+        "coil_confirm": coil_confirm,
+        "box_hi": round(box_hi, 2) if coil_ok else None,
+        "box_lo": round(box_lo, 2) if coil_ok else None,
     }
 
     # ---- 详情图表逐日序列 ----

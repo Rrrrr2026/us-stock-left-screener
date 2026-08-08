@@ -150,6 +150,40 @@ def build_trade_plan(rec: dict, stats: dict | None, prior: dict) -> dict | None:
     atr_pct = rec.get("atr_pct") or 3.0
     atr_frac = float(np.clip(atr_pct / 100.0, 0.008, 0.08))
 
+    # 🚀 蓄势待发(coil)股是"突破型"交易, 与支撑回踩剧本相反:
+    # 买点=放量突破箱体上沿, 止损=跌回箱体下沿, 目标=箱体高度量度目标 (不给回踩胜率 —
+    # 事件回测统计的是支撑回踩, 描述不了突破交易, 强行标胜率是误导)。
+    box_hi, box_lo = rec.get("box_hi"), rec.get("box_lo")
+    if rec.get("coil") and box_hi and box_lo and 0 < box_lo < box_hi:
+        entry_ref = float(box_hi)
+        box_h = float(box_hi) - float(box_lo)
+        stop_px = max(float(box_lo) * 0.995, entry_ref * (1.0 - MAX_STOP))
+        stop_loss_pct = (entry_ref - stop_px) / entry_ref * 100.0
+
+        def _mt(mult):
+            g = box_h * mult / entry_ref
+            return {"gain_pct": round(g * 100.0, 1),
+                    "price": round(entry_ref * (1.0 + g), 2),
+                    "prob_pct": None, "days_med": None}
+
+        base = _mt(1.0)     # 经典箱体量度目标 = 上沿 + 1×箱体高度
+        rr = (base["gain_pct"] / stop_loss_pct) if stop_loss_pct > 0 else None
+        return {
+            "entry_mode": "breakout",
+            "entry_ref": round(entry_ref, 2),
+            "entry_low": round(entry_ref, 2),
+            "entry_high": round(entry_ref * (1.0 + 0.5 * atr_frac), 2),
+            "stop_price": round(stop_px, 2),
+            "stop_loss_pct": round(stop_loss_pct, 1),
+            "targets": {"steady": _mt(0.5), "base": base, "stretch": _mt(2.0)},
+            "ladder": [],
+            "rr": round(rr, 1) if rr else None,
+            "horizon_days": HORIZON,
+            "n_events": 0, "pool_events": prior.get("n", 0),
+            "stopped_rate_pct": None,
+            "box_hi": round(float(box_hi), 2), "box_lo": round(float(box_lo), 2),
+        }
+
     # 入场参考: 有支撑位则以支撑为锚 (等回踩); 已跌破支撑则以现价为锚;
     # 根本没识别出支撑的(深跌/纯趋势回调股)单独标注, 不能谎称"已失守支撑"
     if support and support > 0 and px >= support * 0.985:

@@ -105,6 +105,18 @@ CONFIG = {
             # dip_score 桶内排名权重: 深度 / 超卖程度 / 贴近低点 / 见底确认数
             "weights": {"depth": 1.2, "oversold": 1.0, "nearlow": 1.0, "confirm": 0.8},
         },
+        # ---- 独立"蓄势待发"桶 (🚀): 深回调后横盘收敛、贴近箱体上沿、随时可能突破 ----
+        # 与支撑型左侧(贴支撑)和深跌抄底(贴52周低)都不同: 它站在整理箱体的"顶部"等突破。
+        "coil": {
+            "drawdown_min": 0.25,       # 箱体上沿距 250日高点 仍有 >= 25% 回撤 (大回调在先)
+            "bars_since_high_min": 40,  # 250日高点距今 >= 40 根bar (回调不是刚发生的崩落)
+            "consol_bars": 30,          # 横盘窗口: 近30根bar
+            "range_max_pct": 16.0,      # 窗口内 (最高-最低)/中点 <= 16% 才算"横盘收敛"
+            "near_high_pct": 5.0,       # 现价距箱体上沿 <= 5% 且在箱体上半部 (蓄势末端)
+            "squeeze_pctile": 40.0,     # 布林带宽处于近一年 40% 分位以下 = 波动被压缩
+            # coil_score 桶内排名权重: 收敛紧度 / 贴近上沿 / 挤压深度 / 突破确认数
+            "weights": {"tight": 1.0, "near_high": 1.0, "squeeze": 1.0, "confirm": 0.8},
+        },
     },
     "cross": {
         "w_tech": 0.50, "w_fund": 0.30, "w_prosperity": 0.20,
@@ -120,6 +132,8 @@ CONFIG = {
         "fund_top_n": 400,
         "dashboard_detail_top_n": 150,
         "dip_top_n": 40,                # 深跌抄底桶最多并入/展示的只数 (上限, 防止灌进一堆刀)
+        "coil_top_n": 40,               # 蓄势待发桶最多并入/展示的只数
+        "history_days": 90,             # 历史快照保留天数 (docs/history/)
     },
 }
 

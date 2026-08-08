@@ -75,6 +75,23 @@ def run(use_cache=True):
     selected = list(sec_df[sec_df["selected"]]["industry"]) if (sec_df is not None and not sec_df.empty) else []
     log.info("板块景气榜前3: %s", list(sec_df["industry"][:3]) if (sec_df is not None and not sec_df.empty) else [])
 
+    # 市场地位 (垄断力代理): 细分行业内市值排名与份额。免费源无产品级市占率,
+    # 以 NASDAQ 细分行业(153组)的市值份额近似; 行业缺失回退到 GICS 板块分组。
+    dom_map = {}
+    if "mcap" in universe.columns:
+        _u = universe[universe["mcap"] > 0].copy()
+        _u["_grp"] = _u["nasdaq_industry"].where(
+            _u["nasdaq_industry"].astype(bool), _u["sector"])
+        for gname, g in _u.groupby("_grp"):
+            if not gname:
+                continue
+            g = g.sort_values("mcap", ascending=False).reset_index(drop=True)
+            total = float(g["mcap"].sum())
+            for i, r in g.iterrows():
+                share = round(r["mcap"] / total * 100.0, 1) if total > 0 else None
+                dom_map[r["code"]] = {"rank": int(i) + 1, "n": int(len(g)), "share": share}
+        log.info("市场地位分组: %d 个行业组, 覆盖 %d 只", _u["_grp"].nunique(), len(dom_map))
+
     stocks = [(r["code"], r["name"], r["sector"]) for _, r in universe.iterrows()]
     workers = CONFIG["fetch"]["max_workers"] or min(12, (os.cpu_count() or 4) * 2)
 
@@ -95,8 +112,9 @@ def run(use_cache=True):
         rec, detail = m2.scan_one(code, name, h, None, bench_close=bench_close)
         if rec is None:
             return None
-        # 支撑分达标 OR 深跌抄底桶达标, 二者其一即保留 (dip 桶专捞结构已破的深跌超卖股)
-        if rec["tech_score"] < CONFIG["tech"]["min_tech_score"] and not rec.get("dip"):
+        # 支撑分达标 OR 深跌抄底桶 OR 蓄势待发桶, 三者其一即保留
+        if (rec["tech_score"] < CONFIG["tech"]["min_tech_score"]
+                and not rec.get("dip") and not rec.get("coil")):
             return None
         rec["industry"] = sector
         return (rec, detail)
@@ -132,6 +150,15 @@ def run(use_cache=True):
         _seen.add(rd[0]["code"])
     n_dip_added = len(dip_new)
     log.info("深跌抄底桶: 命中 %d 只, 并入候选 %d 只", len(dip_pool), n_dip_added)
+    # 并入"蓄势待发"桶 (与 dip 同构): 按 coil_score 取前 coil_top_n 只。
+    # 排除 dip 重叠, 与 coil_tail/coil_extra 的展示过滤同口径, 避免配额被展示不了的股占掉
+    coil_pool = sorted([rd for rd in hits if rd[0].get("coil") and not rd[0].get("dip")],
+                       key=lambda rd: -rd[0].get("coil_score", 0.0))
+    coil_new = [rd for rd in coil_pool if rd[0]["code"] not in _seen][:CONFIG["output"].get("coil_top_n", 40)]
+    for rd in coil_new:
+        top_hits.append(rd)
+        _seen.add(rd[0]["code"])
+    log.info("蓄势待发桶: 命中 %d 只, 并入候选 %d 只", len(coil_pool), len(coil_new))
     log.info("阶段B 基本面+交叉打分: 取技术分最高 %d 只(含深跌抄底) ...", len(top_hits))
 
     def _fund(rd):
@@ -191,6 +218,13 @@ def run(use_cache=True):
         if syf and syf != rec.get("industry"):
             rec["industry"] = syf
             n_sec_fix += 1
+        # 市场地位字段并入基本面记录 (行业内市值 排名/份额, 👑=行业市值第一且份额>=15%)
+        d = dom_map.get(rec["code"])
+        if d:
+            crown = "👑" if (d["rank"] == 1 and (d["share"] or 0) >= 15) else ""
+            share_txt = f" · {d['share']}%" if d["share"] is not None else ""
+            f["dominance_disp"] = f"{crown}#{d['rank']}/{d['n']}{share_txt}"
+            f["dom_rank"], f["dom_n"], f["dom_share"] = d["rank"], d["n"], d["share"]
     log.info("板块修正(Yahoo GICS 覆盖 NASDAQ): %d 只", n_sec_fix)
 
     # 板块PE中位 + 全体PE/PB横截面分位 (使 便宜加分与"分位"列有意义)
@@ -232,19 +266,23 @@ def run(use_cache=True):
     # detail 与 profile 都对齐这个集合: 既保证浮现的 dip 股点开有 K线/档案, 又不为不展示的股白存(控 JS 体积)。
     dip_tail = sorted([fr for fr in final_records[show_n:] if fr.get("dip")],
                       key=lambda fr: -(fr.get("dip_score") or 0.0))[:CONFIG["output"].get("dip_top_n", 40)]
-    # 所有"会展示"的 dip 股(主榜内的 + 补进来的)都存 K线: 🪸 股点开有图不空;
-    # 非展示的 dip 不存, 控 JS 体积。(前 detail_n 名照常存, 与支撑股一致)
-    shown_dip = {fr["code"] for fr in final_records[:show_n] if fr.get("dip")} | {fr["code"] for fr in dip_tail}
+    coil_tail = sorted([fr for fr in final_records[show_n:]
+                        if fr.get("coil") and not fr.get("dip")],
+                       key=lambda fr: -(fr.get("coil_score") or 0.0))[:CONFIG["output"].get("coil_top_n", 40)]
+    # 所有"会展示"的 dip/coil 股(主榜内的 + 补进来的)都存 K线: 点开有图不空;
+    # 非展示的不存, 控 JS 体积。(前 detail_n 名照常存, 与支撑股一致)
+    shown_extra = ({fr["code"] for fr in final_records[:show_n] if fr.get("dip") or fr.get("coil")}
+                   | {fr["code"] for fr in dip_tail} | {fr["code"] for fr in coil_tail})
     for idx, (rec, detail, f, fr) in enumerate(scored):
         db.save_tech(run_date, [rec])
         db.save_fundamental(run_date, rec["code"], f)
         db.save_final(run_date, [fr])
-        if (idx < detail_n or rec["code"] in shown_dip) and detail:
+        if (idx < detail_n or rec["code"] in shown_extra) and detail:
             db.save_detail(run_date, rec["code"], detail)
 
     # ---- 阶段C1: 买卖点建议 (Trade Plan) — 对将展示的候选做支撑回踩事件回测 ----
     # 历史数据走当日缓存(fetch_hist 命中即秒回), 先收集各股事件统计, 再算全池先验, 最后收缩出胜率。
-    plan_targets = final_records[:show_n] + [fr for fr in dip_tail]
+    plan_targets = final_records[:show_n] + dip_tail + coil_tail
     tech_by_code = {rec["code"]: rec for (rec, _, _, _) in scored}
     log.info("阶段C1 买卖点回测: %d 只 ...", len(plan_targets))
     plan_stats = {}
@@ -271,18 +309,25 @@ def run(use_cache=True):
             log.debug("买卖点生成 %s 失败: %s", fr["code"], e)
     log.info("  买卖点建议: %d 只已生成", n_plans)
 
-    # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 最终候选 + 浮现的深跌抄底股 ----
-    prof_targets = final_records[:show_n] + dip_tail
+    # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 最终候选 + 浮现的 dip/coil 股 ----
+    prof_targets = final_records[:show_n] + dip_tail + coil_tail
     log.info("阶段C 深度档案: %d 只 (现金流/营收/新闻/期权/FINRA) ...", len(prof_targets))
     finra_map = ds.fetch_finra_short_volume()
     log.info("  FINRA 场外空头数据: %d 只", len(finra_map))
 
-    _prof_ok = {}   # code -> 该档案是否拿到"年度营收"(判断是否需重试)
+    _profiles = {}   # code -> 档案 (判断哪些需要重试)
 
     def _prof(fr):
         p = m6.pull_profile(fr["code"], sector=fr.get("industry"), short_map=finra_map)
         db.save_profile(run_date, fr["code"], p)
-        _prof_ok[fr["code"]] = bool((p.get("revenue") or {}).get("years"))
+        _profiles[fr["code"]] = p
+
+    def _rev_ok(p):
+        return bool((p.get("revenue") or {}).get("years"))
+
+    def _prof_empty(p):
+        # info 整体被限频: 简介/管理层/营收全空 -> 弹窗四个页签全是"暂无"
+        return not p.get("summary") and not p.get("officers") and not _rev_ok(p)
 
     with ThreadPoolExecutor(max_workers=fund_workers) as pool:
         futs = [pool.submit(_prof, fr) for fr in prof_targets]
@@ -292,19 +337,28 @@ def run(use_cache=True):
             except Exception as e:
                 log.debug("深度档案失败: %s", e)
 
-    # ---- 加固: 年报被限频会让"营收拆解/现金流"空白, 对缺年度营收的档案重试一轮 ----
-    miss = [fr for fr in prof_targets if not _prof_ok.get(fr["code"])]
-    if miss and len(miss) >= max(5, int(0.3 * len(prof_targets))):
-        log.warning("深度档案覆盖偏低(缺年度营收 %d/%d), 重试 ...", len(miss), len(prof_targets))
+    # ---- 加固: 全空/拉取即崩(不在_profiles里)的档案无条件重试; 缺年度营收批量偏高时也重试 ----
+    empty = [fr for fr in prof_targets
+             if fr["code"] not in _profiles or _prof_empty(_profiles[fr["code"]])]
+    miss_rev = [fr for fr in prof_targets
+                if fr["code"] in _profiles and not _rev_ok(_profiles[fr["code"]])]
+    retry = list(empty)
+    if len(miss_rev) >= max(5, int(0.3 * len(prof_targets))):
+        seen_r = {fr["code"] for fr in retry}
+        retry += [fr for fr in miss_rev if fr["code"] not in seen_r]
+    if retry:
+        log.warning("深度档案重试: 全空 %d 只, 缺年度营收 %d/%d ...",
+                    len(empty), len(miss_rev), len(prof_targets))
         with ThreadPoolExecutor(max_workers=max(2, fund_workers // 2)) as pool:
-            futs = [pool.submit(_prof, fr) for fr in miss]
+            futs = [pool.submit(_prof, fr) for fr in retry]
             for fut in as_completed(futs):
                 try:
                     fut.result()
                 except Exception:
                     pass
-        log.info("深度档案重试后: 有年度营收 %d/%d",
-                 sum(1 for v in _prof_ok.values() if v), len(prof_targets))
+        n_empty_after = sum(1 for p in _profiles.values() if _prof_empty(p))
+        log.info("深度档案重试后: 全空 %d, 有年度营收 %d/%d", n_empty_after,
+                 sum(1 for p in _profiles.values() if _rev_ok(p)), len(prof_targets))
 
     finished = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     db.log_run(run_date, started, finished, n_scanned, len(final_records), selected, "ok",
@@ -312,6 +366,7 @@ def run(use_cache=True):
     log.info("扫描完成: 扫描 %d, 命中 %d", n_scanned, len(final_records))
     ex.write_dashboard_js(run_date)
     ex.write_csv(run_date)
+    ex.write_history_snapshot(run_date)
     log.info("✅ 全部完成。请双击打开 dashboard/index.html")
 
 

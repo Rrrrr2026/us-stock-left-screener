@@ -1,6 +1,7 @@
 # 运行时产物 / 数据 (不上传)
 data/
 dashboard/dashboard_data.js
+dashboard/history/
 *.db
 *.pkl
 *.csv
