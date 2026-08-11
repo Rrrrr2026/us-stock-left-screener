@@ -209,6 +209,52 @@ def run(use_cache=True):
         log.info("基本面重试后覆盖: %d/%d",
                  sum(1 for (_, _, f) in results if not _fund_empty(f)), len(results))
 
+    # ---- 加固2: 零散空白(不到40%阈值)也无条件低并发重试一轮 ----
+    # 限频往往打在批次的一段区间上; 阈值式重试漏掉的散点会以"全横杠行"上榜(蓄势股尤甚)。
+    idx_scatter = [i for i, (_, _, f) in enumerate(results) if _fund_empty(f)]
+    if idx_scatter:
+        log.info("零散空白基本面 %d 只, 低并发重试 ...", len(idx_scatter))
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            def _slow_pull(i):
+                time.sleep(0.4)
+                return i, m3.pull_fundamentals(results[i][0]["code"],
+                                               sector=results[i][0].get("industry"))
+            futs = [pool.submit(_slow_pull, i) for i in idx_scatter]
+            for fut in as_completed(futs):
+                try:
+                    i, nf = fut.result()
+                    if nf and not _fund_empty(nf):
+                        rec, detail, _ = results[i]
+                        results[i] = (rec, detail, nf)
+                except Exception:
+                    pass
+    # ---- 加固3: 仍空白的回落到最近一天的基本面 (基本面日变化很小, 好过全横杠) ----
+    n_fb = 0
+    for i, (rec, detail, f) in enumerate(results):
+        if not _fund_empty(f):
+            continue
+        old = db.fetch_latest_fundamental(rec["code"], run_date)
+        if not old:
+            continue
+        of = {k: old.get(k) for k in f.keys() if k in old}
+        import json as _json
+        for jk, k in (("roe_trend_json", "roe_trend"), ("roe_trend_q_json", "roe_trend_q"),
+                      ("fund_flags_json", "fund_flags"), ("ni_qoq_json", "ni_qoq"),
+                      ("ni_parent_qoq_json", "ni_parent_qoq"), ("ni_q_labels_json", "ni_q_labels")):
+            try:
+                of[k] = _json.loads(old.get(jk) or "[]")
+            except Exception:
+                of[k] = []
+        nf = dict(f)
+        nf.update({k: v for k, v in of.items() if v is not None and v != []})
+        if not _fund_empty(nf):
+            results[i] = (rec, detail, nf)
+            n_fb += 1
+    if n_fb:
+        log.info("基本面回落补齐(用最近一天数据): %d 只", n_fb)
+    log.info("基本面最终覆盖: %d/%d",
+             sum(1 for (_, _, f) in results if not _fund_empty(f)), len(results))
+
     # 板块覆盖: NASDAQ 名单板块质量差(MO被标Health Care等)且有缺失,
     # 候选股以 Yahoo info 的 GICS 口径板块为准, NASDAQ 仅兜底。
     # 必须在 板块PE中位 分组之前做, 否则中位数按错误板块分组 (审查发现的排序缺陷)

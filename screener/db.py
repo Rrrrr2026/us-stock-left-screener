@@ -215,6 +215,15 @@ def save_fundamental(run_date: str, code: str, f: dict):
     _upsert("fundamental", [row])
 
 
+def fetch_latest_fundamental(code: str, before_run_date: str) -> dict | None:
+    """取该股最近一次(早于指定日)的基本面行 — Yahoo限频兜底用, 基本面日变化很小。"""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM fundamental WHERE code=? AND run_date<? "
+            "ORDER BY run_date DESC LIMIT 1", (code, before_run_date)).fetchone()
+        return dict(row) if row else None
+
+
 def save_final(run_date: str, records: list[dict]):
     _upsert("final_rank", [{**r, "run_date": run_date} for r in records])
 
