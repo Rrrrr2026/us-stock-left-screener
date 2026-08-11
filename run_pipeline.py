@@ -356,7 +356,12 @@ def run(use_cache=True):
     log.info("  买卖点建议: %d 只已生成", n_plans)
 
     # ---- 阶段C: 深度档案 (现金流/营收/新闻/期权/暗池) — 最终候选 + 浮现的 dip/coil 股 ----
-    prof_targets = final_records[:show_n] + dip_tail + coil_tail
+    # 深度档案只为可操作标签生成 (用户指定: 仅 强左侧 + 蓄势待发) —
+    # 观察/基本面弱 占榜单大头但很少被点开, 砍掉后阶段C耗时降 ~2/3, 限频压力大减
+    _prof_pool = final_records[:show_n] + dip_tail + coil_tail
+    prof_targets = [fr for fr in _prof_pool
+                    if ("强左侧" in (fr.get("tag") or "")) or ("蓄势待发" in (fr.get("tag") or ""))]
+    log.info("深度档案范围: 强左侧+蓄势待发 %d 只 (榜单共 %d)", len(prof_targets), len(_prof_pool))
     log.info("阶段C 深度档案: %d 只 (现金流/营收/新闻/期权/FINRA) ...", len(prof_targets))
     finra_map = ds.fetch_finra_short_volume()
     log.info("  FINRA 场外空头数据: %d 只", len(finra_map))
