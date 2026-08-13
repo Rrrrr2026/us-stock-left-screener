@@ -361,8 +361,9 @@
       col_dist:"距支撑%", col_support:"关键支撑位", col_break:"破位位", col_pos52:"52周位置%",
       col_ret1m:"近一月涨%", col_rethy:"近半年涨跌%", col_amt:"日均额$M", col_div:"股息率%", col_kdj:"KDJ",
       col_pe:"市盈率TTM(分位)", col_pb:"市净率", col_eps:"EPS", col_roe:"ROE", col_upside:"距目标价%",
-      col_dom:"市场地位", col_nittm:"近四季净利增速", col_nipttm:"近四季归母增速", col_growq:"增长持续性",
-      qoq_tip:"四个数=最近4个季度的逐季环比增速(旧→新, 连续为正=逐季抬升); 第二行为同比及口径。",
+      col_dom:"市场地位", col_nittm:"近四季EPS同比", col_nipttm:"近四季营收增速", col_growq:"增长持续性",
+      qoq_tip:"四个数=最近4个单季的实际公布EPS同比(旧→新, 连续为正=逐季都在增长; 来源: 财报日历公布值); 第二行为净利同比及口径。",
+      qoq_tip_rev:"四个数=最近4个季度营收环比(旧→新); 第二行为营收同比及口径(Yahoo报表仅~5季, 营收同比×4暂无数据支撑)。",
       dom_tip:"细分行业内市值排名与份额(垄断力代理指标; 免费数据源无产品级市占率) · 👑=行业市值第一且份额≥15%",
       growq_tip:"由 近4财年净利趋势 × 近4个季度环比 交叉判断: 区分可持续增长与一次性放量",
       th_sort:"点击排序 · 按住拖动可调整列的位置", star_col:"自选",
@@ -506,8 +507,9 @@
       col_dist:"Dist Supp%", col_support:"Key Support", col_break:"Breakdown", col_pos52:"52w Pos%",
       col_ret1m:"1M Ret%", col_rethy:"6M Ret%", col_amt:"Avg Amt$M", col_div:"Div%", col_kdj:"KDJ",
       col_pe:"P/E TTM (pctile)", col_pb:"P/B", col_eps:"EPS", col_roe:"ROE", col_upside:"Upside%",
-      col_dom:"Mkt Position", col_nittm:"NI Growth (4Q)", col_nipttm:"Parent NI Growth", col_growq:"Growth Quality",
-      qoq_tip:"Four numbers = sequential quarter-over-quarter NI growth for the last 4 quarters (old→new; all positive = steadily rising). Second line = YoY with its basis.",
+      col_dom:"Mkt Position", col_nittm:"EPS YoY (4Q)", col_nipttm:"Revenue Growth (4Q)", col_growq:"Growth Quality",
+      qoq_tip:"Four numbers = single-quarter reported-EPS YoY for the last 4 quarters (old→new; all positive = growing every quarter; source: earnings-calendar actuals). Second line = NI YoY with its basis.",
+      qoq_tip_rev:"Four numbers = sequential quarter-over-quarter revenue growth (old→new); second line = revenue YoY with its basis (Yahoo statements carry only ~5 quarters).",
       dom_tip:"Market-cap rank & share within the sub-industry (a dominance proxy; no free product-level market-share source) · 👑 = #1 with ≥15% share",
       growq_tip:"Cross-check of 4-year annual NI trend × last 4 quarterly sequential changes: sustained growth vs one-off spike",
       th_sort:"Click to sort · drag to reorder columns", star_col:"Watchlist",
@@ -644,7 +646,7 @@
   }
   // 列 key -> 翻译键
   const COL_I18N={ code:"col_code",name:"col_name",industry:"col_industry",tag:"col_tag",streak:"col_streak",
-    dominance_disp:"col_dom",ni_ttm_yoy:"col_nittm",ni_parent_ttm_yoy:"col_nipttm",growth_quality:"col_growq",
+    dominance_disp:"col_dom",ni_ttm_yoy:"col_nittm",rev_ttm_yoy:"col_nipttm",growth_quality:"col_growq",
     final_score:"col_final",tech_score:"col_tech",fund_score:"col_fund",price:"col_price",spark:"col_spark",
     dist_support_pct:"col_dist",support_disp:"col_support",breakdown_price:"col_break",pos_52w_pct:"col_pos52",
     ret_1m_pct:"col_ret1m",ret_half_year_pct:"col_rethy",avg_amt20_yi:"col_amt",dividend_yield:"col_div",
@@ -872,7 +874,7 @@
   const NUMERIC = new Set(["final_score","tech_score","fund_score","tech_norm","prosperity_score","price","dist_support_pct",
     "breakdown_price","pos_52w_pct","ret_1m_pct","ret_half_year_pct","avg_amt20_yi","dividend_yield","pb","eps","roe",
     "streak","upside_pct","target_price","analyst_count","atr_pct","max_dd_pct","beta","boll_low","volume_ratio","turnover",
-    "ni_ttm_yoy","ni_parent_ttm_yoy","dom_share","dominance_disp"]);
+    "ni_ttm_yoy","rev_ttm_yoy","dom_share","dominance_disp"]);
   try{ const saved=JSON.parse(localStorage.getItem(COLORDER_KEY)||"null");
     if(Array.isArray(saved)&&saved.length){ COLS.sort((a,b)=>{ let ia=saved.indexOf(a.key), ib=saved.indexOf(b.key); return (ia<0?999:ia)-(ib<0?999:ib); }); } }catch(e){}
 
@@ -979,11 +981,11 @@
       case "dist_support_pct": return supportCell(v);
       case "upside_pct": return upsideCell(v);
       case "ret_1m_pct": case "ret_half_year_pct": return signPctCell(v);
-      case "ni_ttm_yoy": case "ni_parent_ttm_yoy": {
-        const parent = (key==="ni_parent_ttm_yoy");
-        const ser = parent ? c.ni_parent_qoq : c.ni_qoq;      // 最近4个逐季环比 (旧→新)
-        const b = parent ? c.ni_parent_basis : c.ni_basis;     // 同比口径, 两列各标各的
-        const labels = Array.isArray(c.ni_q_labels)? c.ni_q_labels : [];
+      case "ni_ttm_yoy": case "rev_ttm_yoy": {
+        const isRev = (key==="rev_ttm_yoy");
+        const ser = isRev ? c.rev_qoq : c.ni_qoq;      // 净利列=实际EPS单季同比×4; 营收列=环比×4
+        const b = isRev ? c.rev_basis : c.ni_basis;
+        const labels = (!isRev && Array.isArray(c.ni_q_labels))? c.ni_q_labels : [];
         if(Array.isArray(ser) && ser.some(isNum)){
           const nums = ser.map((x,i)=>{
             if(!isNum(x)) return `<span class="text-slate-600">·</span>`;
@@ -992,7 +994,7 @@
             const txt = (Math.abs(x)>=100? x.toFixed(0) : x.toFixed(1));
             return `<span class="${cls} ${bold}">${x>0?"+":""}${txt}</span>`;
           }).join('<span class="text-slate-600 mx-0.5">›</span>');
-          const tip = t("qoq_tip") + " " + ser.map((x,i)=>`${labels[i]||""} ${isNum(x)?(x>0?"+":"")+x.toFixed(1)+"%":"—"}`).join("  ");
+          const tip = t(isRev?"qoq_tip_rev":"qoq_tip") + " " + ser.map((x,i)=>`${labels[i]||""} ${isNum(x)?(x>0?"+":"")+x.toFixed(1)+"%":"—"}`).join("  ");
           const yoyLine = isNum(v)
             ? `<div class="text-[10px] text-slate-500">${t("yoy_l")} ${v>0?"+":""}${v.toFixed(1)}%${b?" · "+escH(basisText(b)):""}</div>` : "";
           return `<div class="num leading-tight whitespace-nowrap" title="${escH(tip)}">${nums}<span class="text-[10px] text-slate-500 ml-0.5">%</span>${yoyLine}</div>`;

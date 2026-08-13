@@ -30,8 +30,8 @@ DISCLAIMER = ("本系统仅对美股(全美股, 市值≥$100M)做技术/基本�
 # 市场地位 = 细分行业内市值排名/份额 (垄断力代理); 近四季增速为分层口径(TTM/单季/年度)
 MAIN_COLUMNS = [
     ("code", "代码"), ("name", "名称"), ("industry", "所属板块"),
-    ("dominance_disp", "市场地位"), ("ni_ttm_yoy", "近四季净利同比%"),
-    ("ni_parent_ttm_yoy", "近四季归母同比%"), ("growth_quality", "增长持续性"),
+    ("dominance_disp", "市场地位"), ("ni_ttm_yoy", "近四季EPS同比%"),
+    ("rev_ttm_yoy", "近四季营收增速%"), ("growth_quality", "增长持续性"),
     ("pe_disp", "市盈率TTM(分位)"),
     ("tag", "结论标签"), ("streak", "连续上榜"), ("final_score", "综合分"), ("tech_score", "技术分"),
     ("fund_score", "基本面分"), ("price", "现价$"), ("spark", "近期走势"), ("dist_support_pct", "距支撑%"),
@@ -128,9 +128,11 @@ def build_payload(run_date: str | None = None) -> dict:
             "dom_n": f.get("dom_n"), "dom_share": f.get("dom_share"),
             "ni_ttm_yoy": f.get("ni_ttm_yoy"), "ni_parent_ttm_yoy": f.get("ni_parent_ttm_yoy"),
             "ni_basis": f.get("ni_basis"), "ni_parent_basis": f.get("ni_parent_basis"),
+            "rev_ttm_yoy": f.get("rev_ttm_yoy"), "rev_basis": f.get("rev_basis"),
             "growth_quality": f.get("growth_quality"),
             "ni_qoq": _loads(f.get("ni_qoq_json"), default=[]),
             "ni_parent_qoq": _loads(f.get("ni_parent_qoq_json"), default=[]),
+            "rev_qoq": _loads(f.get("rev_qoq_json"), default=[]),
             "ni_q_labels": _loads(f.get("ni_q_labels_json"), default=[]),
             "fib_382": t.get("fib_382"), "fib_500": t.get("fib_500"), "fib_618": t.get("fib_618"),
             "target_price": f.get("target_price"), "analyst_rating": f.get("analyst_rating"),

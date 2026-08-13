@@ -44,6 +44,7 @@ def pull_fundamentals(code: str, sector: str | None = None,
         "ni_ttm_yoy": None, "ni_parent_ttm_yoy": None, "ni_basis": None,
         "ni_parent_basis": None, "growth_quality": None,
         "ni_qoq": [], "ni_parent_qoq": [], "ni_q_labels": [],
+        "rev_qoq": [], "rev_ttm_yoy": None, "rev_basis": None,
         "fund_flags": [],
     }
     info = ds.fetch_info(code)
@@ -115,8 +116,20 @@ def pull_fundamentals(code: str, sector: str | None = None,
     res["ni_parent_ttm_yoy"], res["ni_parent_basis"] = _tiered_yoy(
         qni.get("ni_parent"), qni.get("fy_ni_parent"), qni.get("q_dates"), qni.get("fy_dates"))
     res["growth_quality"] = _growth_quality(qni)
-    # 逐季环比序列 (最近4个, 旧→新) — Yahoo 仅给~5个季度, 同比×4 无数据支撑, 环比×4 可行
-    res["ni_qoq"], res["ni_q_labels"] = _qoq_series(qni.get("ni"), qni.get("q_dates"))
+    # 近四季EPS同比×4: 财报日历的"实际公布EPS"有8-12个季度深度 → 每个季度都能配上
+    # 去年同季, 得到真·单季同比 (报表净利只有~5季, 只能算环比, 曾被反馈"看不准")
+    try:
+        epsh = ds.fetch_eps_history(code)
+    except Exception:
+        epsh = {}
+    res["ni_qoq"], res["ni_q_labels"] = _eps_yoy4(epsh.get("dates"), epsh.get("eps"))
+    if not res["ni_qoq"] or not any(v is not None for v in res["ni_qoq"]):
+        # EPS历史缺失: 退回净利环比 (标签会带"环比"口径提示)
+        res["ni_qoq"], res["ni_q_labels"] = _qoq_series(qni.get("ni"), qni.get("q_dates"))
+    # 第二列改为 营收: 环比×4 + 分层头条 (归母列与净利列在美股口径下基本重复, 无信息量)
+    res["rev_qoq"], _ = _qoq_series(qni.get("rev"), qni.get("q_dates"))
+    res["rev_ttm_yoy"], res["rev_basis"] = _tiered_yoy(
+        qni.get("rev"), None, qni.get("q_dates"), None)
     res["ni_parent_qoq"], _ = _qoq_series(qni.get("ni_parent"), qni.get("q_dates"))
 
     # ROE 多年趋势 (年度财报: 净利润/股东权益; 失败静默为 []) + 季度TTM口径
@@ -196,6 +209,39 @@ def _tiered_yoy(qv: list | None, fyv: list | None,
             if y is not None:
                 return y, "年度"
     return None, None
+
+
+def _eps_yoy4(dates: list | None, eps: list | None, k: int = 4):
+    """实际公布EPS的单季同比×最近k个 (旧→新)。财报日历按公布日排序,
+    第i个与第i-4个配对, 且要求间隔≈1年(300~430天), 避免错配。"""
+    dates = dates or []
+    eps = eps or []
+    if len(eps) < 5:
+        return [], []
+    import datetime as _dt
+
+    def _days(a, b):
+        try:
+            return abs((_dt.datetime.strptime(b, "%Y-%m-%d")
+                        - _dt.datetime.strptime(a, "%Y-%m-%d")).days)
+        except Exception:
+            return None
+    out, labels = [], []
+    n = len(eps)
+    for i in range(max(4, n - k), n):
+        prev_i = i - 4
+        g = _days(dates[prev_i], dates[i]) if prev_i >= 0 else None
+        val = _yoy_pct(eps[i], eps[prev_i]) if (g is not None and 300 <= g <= 430) else None
+        out.append(val)
+        try:
+            m = int(dates[i][5:7])
+            # 公布日一般滞后财季约1-2月, 粗略回推一个季度作标签
+            q = (m - 2 - 1) // 3 % 4 + 1
+            y = dates[i][2:4] if m > 2 else str(int(dates[i][:4]) - 1)[2:]
+            labels.append(f"{y}Q{q}")
+        except Exception:
+            labels.append(dates[i][:7])
+    return out, labels
 
 
 def _q_label(d: str | None) -> str | None:

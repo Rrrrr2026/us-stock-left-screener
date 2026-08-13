@@ -114,7 +114,8 @@ def _migrate(conn):
                         ("dominance_disp", "TEXT"), ("dom_rank", "INTEGER"),
                         ("dom_n", "INTEGER"), ("dom_share", "REAL"),
                         ("ni_qoq_json", "TEXT"), ("ni_parent_qoq_json", "TEXT"),
-                        ("ni_q_labels_json", "TEXT")],
+                        ("ni_q_labels_json", "TEXT"),
+                        ("rev_ttm_yoy", "REAL"), ("rev_basis", "TEXT"), ("rev_qoq_json", "TEXT")],
         "final_rank": [("conclusion_en", "TEXT"),
                        ("dip", "INTEGER"), ("dip_score", "REAL"), ("dip_confirm", "TEXT"),
                        ("coil", "INTEGER"), ("coil_score", "REAL"), ("coil_confirm", "TEXT")],
@@ -202,6 +203,7 @@ def save_fundamental(run_date: str, code: str, f: dict):
         "target_price", "analyst_rating", "analyst_count", "upside_pct",
         "fcf_yield", "sector_yf",
         "ni_ttm_yoy", "ni_parent_ttm_yoy", "ni_basis", "ni_parent_basis", "growth_quality",
+        "rev_ttm_yoy", "rev_basis",
         "dominance_disp", "dom_rank", "dom_n", "dom_share")}
     row.update({
         "run_date": run_date, "code": code,
@@ -211,6 +213,7 @@ def save_fundamental(run_date: str, code: str, f: dict):
         "ni_qoq_json": json.dumps(f.get("ni_qoq", []), ensure_ascii=False),
         "ni_parent_qoq_json": json.dumps(f.get("ni_parent_qoq", []), ensure_ascii=False),
         "ni_q_labels_json": json.dumps(f.get("ni_q_labels", []), ensure_ascii=False),
+        "rev_qoq_json": json.dumps(f.get("rev_qoq", []), ensure_ascii=False),
     })
     _upsert("fundamental", [row])
 

@@ -466,6 +466,37 @@ def fetch_roe_trend_q(code: str) -> list:
     return out
 
 
+def fetch_eps_history(code: str) -> dict:
+    """财报日历的"实际公布EPS"序列 (get_earnings_dates, 约8-12个季度) —
+    这是 Yahoo 免费口径里唯一够深的"单季盈利"数据, 用于 近四季EPS同比×4。
+    返回 {"dates": [...升序 'YYYY-MM-DD'], "eps": [...]}; 失败 {}。"""
+    key = _cache_key("epsh", code, dt.date.today().isoformat())
+    c = _cache_load(key)
+    if c is not None:
+        return c if isinstance(c, dict) else {}
+    out = {}
+    try:
+        tk = _yf().Ticker(_yf_symbol(code))
+        ed = _retry(lambda: tk.get_earnings_dates(limit=16))
+        if ed is not None and len(ed):
+            rows = []
+            col = "Reported EPS"
+            for idx, r in ed.iterrows():
+                v = r.get(col)
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    continue
+                rows.append((pd.Timestamp(idx).strftime("%Y-%m-%d"), float(v)))
+            rows.sort(key=lambda t: t[0])
+            if rows:
+                out = {"dates": [d for (d, _) in rows], "eps": [v for (_, v) in rows]}
+    except Exception as e:
+        log.debug("fetch_eps_history %s 失败: %s", code, e)
+        out = {}
+    if out:
+        _cache_save(key, out)
+    return out
+
+
 def fetch_quarterly_ni(code: str) -> dict:
     """季度+年度 净利润 与 归母净利润 (百万美元) — 用于近四季增速与增长持续性。
     返回 {"q_dates":[...], "ni":[...], "ni_parent":[...],
@@ -501,12 +532,15 @@ def fetch_quarterly_ni(code: str) -> dict:
 
         q_ni = _pairs(qinc, _NI)
         q_nip = _pairs(qinc, _NIP)
+        q_rev = _pairs(qinc, ("Total Revenue", "Operating Revenue"))
         if q_ni:
             dates = [d for (d, _) in q_ni]
             nip_by = {d: v for (d, v) in q_nip}
+            rev_by = {d: v for (d, v) in q_rev}
             out["q_dates"] = [d.strftime("%Y-%m") for d in dates]
             out["ni"] = [v for (_, v) in q_ni]
             out["ni_parent"] = [nip_by.get(d) for d in dates]
+            out["rev"] = [rev_by.get(d) for d in dates]
         fy_ni = _pairs(inc, _NI)
         fy_nip = _pairs(inc, _NIP)
         if fy_ni:
