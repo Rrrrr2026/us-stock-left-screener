@@ -51,6 +51,9 @@ def _tqdm():
 
 
 def run(use_cache=True):
+    # 全局socket兜底超时: 没设超时的阻塞读60秒后抛异常走重试, 不许挂死整条流水线
+    # (A股版 2026-08-13~19 连续被无超时网络读卡死, 两边都加同样的保险)
+    socket.setdefaulttimeout(60)
     tqdm = _tqdm()
     run_date = dt.date.today().isoformat()
     started = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
