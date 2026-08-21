@@ -426,6 +426,11 @@ def run(use_cache=True):
         bt.run_backtest()
     except Exception as e:
         log.warning("信号回测失败(不影响榜单与发布): %s", e)
+    try:
+        from screener import quality as ql
+        ql.build_quality()
+    except Exception as e:
+        log.warning("优质榜构建失败(不影响榜单与发布): %s", e)
     log.info("✅ 全部完成。请双击打开 dashboard/index.html")
 
 
