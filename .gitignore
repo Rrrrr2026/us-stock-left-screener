@@ -19,3 +19,6 @@ Thumbs.db
 
 # docs/ 用于 GitHub Pages, 需上传
 !docs/dashboard_data.js
+
+# pre-core-merge backups (local only)
+*/_pre_core_backup/
