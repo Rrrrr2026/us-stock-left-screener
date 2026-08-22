@@ -113,6 +113,13 @@ def _enrich(code: str) -> dict:
         log.debug("enrich %s 失败: %s", code, e)
     return out
 
+def _long_hist(code: str):
+    import yfinance as yf
+    df = yf.Ticker(code).history(period="5y", auto_adjust=True)
+    if df is None or len(df) < 120:
+        return None
+    return (df["High"].to_numpy(float), df["Close"].to_numpy(float))
+
 
 def build_quality(top_n: int = TOP_N) -> dict | None:
     funds = _latest_fundamentals()
@@ -179,6 +186,11 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
         r["n_pass"] = sum(bool(r["gates"].get(k)) for k in GATE_KEYS)
     short.sort(key=lambda r: (-(r.get("n_pass") or 0), -(r["score"] or 0)))
     picks = short[:top_n]
+    try:
+        from . import prob20
+        prob20.annotate(picks, _long_hist, conditional=False, key="p20")
+    except Exception as e:
+        log.warning("30日涨20%%概率计算失败: %s", e)
     n_crown = sum(1 for r in picks if r.get("n_pass") == len(GATE_KEYS))
     result = {
         "meta": {"date": dt.date.today().isoformat(),
