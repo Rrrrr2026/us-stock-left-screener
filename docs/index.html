@@ -997,7 +997,7 @@
     $("#oppNote").textContent = t("opp_note");
   }
   // ---------- 共用看板功能见 leftside_shared.js (LS.init 在主脚本末尾) ----------
-  const LS_MARKET = { qlLink: code=>`https://www.tradingview.com/symbols/${encodeURIComponent(code)}/`, domFmt: r=>`#${r}` };
+  const LS_MARKET = { key: "us", qlLink: code=>`https://www.tradingview.com/symbols/${encodeURIComponent(code)}/`, domFmt: r=>`#${r}` };
 
   renderOverview();
 

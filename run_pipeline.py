@@ -54,17 +54,29 @@ def run(use_cache=True):
     # 全局socket兜底超时: 没设超时的阻塞读60秒后抛异常走重试, 不许挂死整条流水线
     # (A股版 2026-08-13~19 连续被无超时网络读卡死, 两边都加同样的保险)
     socket.setdefaulttimeout(60)
-    # 心跳: watchdog.py 据此判断流水线是否卡死 (20分钟不动 -> 杀掉重试)
+    # 心跳 (watchdog.py 据此判断是否卡死): 只有"有进展"才更新 —— 进展 = 各阶段循环每完成
+    # 一只 (下方 _prog) 或 任意一条日志; 纯存活不算进展, 否则主线程卡在网络读上时心跳照样跳。
+    # 心跳带 watchdog 下发的令牌, 孤儿/手动进程写的心跳不会冒充被监控的子进程。
     import threading as _th
     _hb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "heartbeat.txt")
+    _hb_token = os.environ.get("LS_HB_TOKEN", "manual")
+    _prog = {"n": 0}
+
+    class _ProgressHandler(logging.Handler):
+        def emit(self, record):
+            _prog["n"] += 1
+    logging.getLogger().addHandler(_ProgressHandler())
 
     def _beat():
+        last = -1
         while True:
-            try:
-                with open(_hb, "w") as _f:
-                    _f.write(dt.datetime.now().isoformat())
-            except Exception:
-                pass
+            if _prog["n"] != last:
+                last = _prog["n"]
+                try:
+                    with open(_hb, "w", encoding="utf-8") as _f:
+                        _f.write(f"{_hb_token}|{dt.datetime.now().isoformat()}|{last}")
+                except Exception:
+                    pass
             time.sleep(60)
     _th.Thread(target=_beat, daemon=True).start()
     tqdm = _tqdm()
@@ -140,6 +152,7 @@ def run(use_cache=True):
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futs = [pool.submit(_scan, c, n, s) for (c, n, s) in stocks]
         for fut in tqdm(as_completed(futs), total=len(futs)):
+            _prog["n"] += 1
             n_scanned += 1
             try:
                 r = fut.result()
@@ -193,6 +206,7 @@ def run(use_cache=True):
     with ThreadPoolExecutor(max_workers=fund_workers) as pool:
         futs = [pool.submit(_fund, rd) for rd in top_hits]
         for fut in tqdm(as_completed(futs), total=len(futs)):
+            _prog["n"] += 1
             try:
                 results.append(fut.result())
             except Exception as e:
@@ -214,6 +228,7 @@ def run(use_cache=True):
             futs = {pool.submit(m3.pull_fundamentals, results[i][0]["code"],
                                 sector=results[i][0].get("industry")): i for i in idx_empty}
             for fut in as_completed(futs):
+                _prog["n"] += 1
                 i = futs[fut]
                 try:
                     nf = fut.result()
@@ -237,6 +252,7 @@ def run(use_cache=True):
                                                sector=results[i][0].get("industry"))
             futs = [pool.submit(_slow_pull, i) for i in idx_scatter]
             for fut in as_completed(futs):
+                _prog["n"] += 1
                 try:
                     i, nf = fut.result()
                     if nf and not _fund_empty(nf):
@@ -399,6 +415,7 @@ def run(use_cache=True):
     with ThreadPoolExecutor(max_workers=fund_workers) as pool:
         futs = [pool.submit(_prof, fr) for fr in prof_targets]
         for fut in tqdm(as_completed(futs), total=len(futs)):
+            _prog["n"] += 1
             try:
                 fut.result()
             except Exception as e:
@@ -419,6 +436,7 @@ def run(use_cache=True):
         with ThreadPoolExecutor(max_workers=max(2, fund_workers // 2)) as pool:
             futs = [pool.submit(_prof, fr) for fr in retry]
             for fut in as_completed(futs):
+                _prog["n"] += 1
                 try:
                     fut.result()
                 except Exception:
