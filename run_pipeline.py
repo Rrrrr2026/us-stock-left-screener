@@ -54,6 +54,19 @@ def run(use_cache=True):
     # 全局socket兜底超时: 没设超时的阻塞读60秒后抛异常走重试, 不许挂死整条流水线
     # (A股版 2026-08-13~19 连续被无超时网络读卡死, 两边都加同样的保险)
     socket.setdefaulttimeout(60)
+    # 心跳: watchdog.py 据此判断流水线是否卡死 (20分钟不动 -> 杀掉重试)
+    import threading as _th
+    _hb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "heartbeat.txt")
+
+    def _beat():
+        while True:
+            try:
+                with open(_hb, "w") as _f:
+                    _f.write(dt.datetime.now().isoformat())
+            except Exception:
+                pass
+            time.sleep(60)
+    _th.Thread(target=_beat, daemon=True).start()
     tqdm = _tqdm()
     run_date = dt.date.today().isoformat()
     started = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -426,6 +439,11 @@ def run(use_cache=True):
         bt.run_backtest()
     except Exception as e:
         log.warning("信号回测失败(不影响榜单与发布): %s", e)
+    try:
+        from screener import qfund
+        qfund.update_shard()
+    except Exception as e:
+        log.warning("qfund 轮转抓取失败(优质榜仅用候选基本面): %s", e)
     try:
         from screener import quality as ql
         ql.build_quality()

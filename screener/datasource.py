@@ -481,14 +481,20 @@ def fetch_eps_history(code: str) -> dict:
         if ed is not None and len(ed):
             rows = []
             col = "Reported EPS"
+            today_s = dt.date.today().isoformat()
+            future = []
             for idx, r in ed.iterrows():
                 v = r.get(col)
+                d_s = pd.Timestamp(idx).strftime("%Y-%m-%d")
                 if v is None or (isinstance(v, float) and pd.isna(v)):
+                    if d_s >= today_s:
+                        future.append(d_s)          # 尚未公布的 = 下一次财报日
                     continue
-                rows.append((pd.Timestamp(idx).strftime("%Y-%m-%d"), float(v)))
+                rows.append((d_s, float(v)))
             rows.sort(key=lambda t: t[0])
-            if rows:
-                out = {"dates": [d for (d, _) in rows], "eps": [v for (_, v) in rows]}
+            if rows or future:
+                out = {"dates": [d for (d, _) in rows], "eps": [v for (_, v) in rows],
+                       "next": (min(future) if future else None)}
     except Exception as e:
         log.debug("fetch_eps_history %s 失败: %s", code, e)
         out = {}

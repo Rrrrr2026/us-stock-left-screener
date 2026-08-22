@@ -123,6 +123,28 @@ def _long_hist(code: str):
 
 def build_quality(top_n: int = TOP_N) -> dict | None:
     funds = _latest_fundamentals()
+    # 并入 qfund (轮转抓取的全股票池基本面): 候选之外的股票也能进优质榜
+    try:
+        from . import qfund
+        have = {f["code"] for f in funds}
+        dmap = qfund.dom_rank_map()
+        n_add = 0
+        for r in qfund.load_all():
+            if r["code"] in have:
+                continue
+            dr = dmap.get(r["code"])
+            funds.append({
+                "code": r["code"], "name": r.get("name"), "industry": r.get("sector"),
+                "run_date": r.get("asof"), "ni_qoq_json": r.get("eps_q4_json"),
+                "rev_qoq_json": json.dumps([r["rev_yoy"]] if r.get("rev_yoy") is not None else []),
+                "roe": r.get("roe"), "pe_ttm": r.get("pe"), "ni_ttm_yoy": None,
+                "dom_rank": dr[0] if dr else None, "dom_share": dr[1] if dr else None,
+                "src": "qfund",
+            })
+            n_add += 1
+        log.info("优质榜: 候选基本面 %d + qfund 广度 %d", len(have), n_add)
+    except Exception as e:
+        log.warning("qfund 合并失败(仅用候选基本面): %s", e)
     if not funds:
         log.warning("fundamental 表为空, 优质榜跳过")
         return None
@@ -133,7 +155,8 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
         roe = f.get("roe")
         pe = f.get("pe_ttm")
         dr = f.get("dom_rank")
-        g_q4 = bool(len(ni_q4) >= 4 and len(rev_q4) >= 3
+        # 营收: 候选有3-4个单季同比; qfund 广度行只有最新季同比 -> 有多少看多少, 全正才过
+        g_q4 = bool(len(ni_q4) >= 4 and len(rev_q4) >= 1
                     and all(v > 0 for v in ni_q4[-4:]) and all(v > 0 for v in rev_q4[-3:]))
         g_roe = bool(isinstance(roe, (int, float)) and roe >= ROE_MIN)
         g_pe = bool(isinstance(pe, (int, float)) and 0 < pe < PE_MAX)
@@ -200,6 +223,16 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
         "picks": picks,
     }
     json.dump(result, open(QL_JSON, "w", encoding="utf-8"), ensure_ascii=False)
+    # 每日榜单落盘到 history/, 供"榜单战绩"回测 (优质榜不在候选快照里, 需自己留痕)
+    try:
+        hdir = os.path.join(DASHBOARD_DIR, "history")
+        os.makedirs(hdir, exist_ok=True)
+        slim = [{k: p.get(k) for k in ("code", "name", "industry", "score", "n_pass", "pe", "roe", "gates")}
+                for p in picks]
+        with open(os.path.join(hdir, f"quality_{result['meta']['date']}.json"), "w", encoding="utf-8") as f:
+            json.dump({"date": result["meta"]["date"], "picks": slim}, f, ensure_ascii=False)
+    except Exception as e:
+        log.warning("优质榜历史落盘失败: %s", e)
     with open(QL_JS, "w", encoding="utf-8") as f:
         f.write("window.__QL__ = ")
         json.dump(result, f, ensure_ascii=False)
