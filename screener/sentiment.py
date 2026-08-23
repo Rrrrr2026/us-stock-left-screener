@@ -21,7 +21,15 @@
   calm / complacent  其余, 按指数高低区分
 每个阶段都用 1990 年以来的真实数据给出"随后 1/3/6 个月 标普收益"的分布 —— 论点可证伪。
 
-⚠️ 指数是相对排位 + 历史基率, 不是预测; 样本窗口按每5个交易日抽取以减少重叠。
+对抗评审后的诚实口径 (1990-2026, 每阶段 10-16 个独立事件, 3 个月中位数给事件级 bootstrap 区间):
+  ① 新鲜恐慌 (事件头7天内 VIX>=30): 1 个月中位 -0.3%, 正收益 50%, 最差分位 -15% —— 短期是硬币,
+     尾部最深; 6 个月中位 +11.7%。用户"新鲜恐慌还会跌"的担忧在 1 个月尺度上成立 (样本仅 10 个事件)。
+  ② 持续恐慌 (近15日>=25 的天数>=10): 3 个月中位 +6.7%, 正收益 79%, 区间 [+4.3, +9.0] 不含零且高于
+     基准 +3.2% —— 唯一在统计上站得住的优势阶段。
+  ③ 恐慌缓解 (持续恐慌且自20日峰值回落>=20%): 3 个月 +6.1%, 区间 [-0.7, +9.8] 跨零 —— "等缓解"
+     并没有比"持续恐慌"更好, 只是更晚。
+  ④ 温和恐慌 (VIX 20-25 未出清): 6 个月最差分位 -13%, 正收益占比最低 —— 真正危险的区间。
+⚠️ 指数是相对排位 + 历史基率, 不是预测; 样本每5个交易日抽取, 但 3/6 个月窗口仍重叠, 看事件数。
 """
 from __future__ import annotations
 import datetime as dt
@@ -41,7 +49,7 @@ OUT_JS = os.path.join(DASHBOARD_DIR, "sentiment_data.js")
 OUT_JSON = os.path.join(DATA_DIR, "sentiment_result.json")
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
 
-TICKERS = ["^VIX", "^GSPC", "^VVIX", "^SKEW", "HYG", "IEF", "TLT", "GLD", "DX-Y.NYB",
+TICKERS = ["^VIX", "^GSPC", "^VVIX", "HYG", "IEF", "TLT", "GLD", "DX-Y.NYB",
            "RSP", "SPY", "XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLU", "XLB", "XLRE", "XLC"]
 SECTORS = {"XLK": "科技", "XLY": "可选消费", "XLF": "金融", "XLC": "通信", "XLI": "工业",
            "XLB": "材料", "XLE": "能源", "XLV": "医疗", "XLP": "必需消费", "XLU": "公用", "XLRE": "地产"}
@@ -81,7 +89,10 @@ def _pct_rank(series: pd.Series, window: int = WINDOW) -> pd.Series:
     """每个时点相对其前 window 根 (含自身) 的百分位 (0-100)。"""
     def _last_pct(x):
         v = x[-1]
-        return float((x < v).sum() + 0.5 * (x == v).sum()) / len(x) * 100.0
+        if np.isnan(v):
+            return np.nan                         # 当日缺值 -> 缺值, 不许变成 0 (反向支柱会翻成100)
+        xx = x[~np.isnan(x)]
+        return float((xx < v).sum() + 0.5 * (xx == v).sum()) / len(xx) * 100.0
     return series.rolling(window, min_periods=max(60, window // 4)).apply(_last_pct, raw=True)
 
 
@@ -152,38 +163,67 @@ def breadth_from_cache(max_days_back: int = 5) -> pd.DataFrame | None:
 #  阶段机 + 历史验证
 # ---------------------------------------------------------------------------
 def vix_states(vix: pd.Series) -> pd.Series:
+    """acute = 恐慌事件的头 7 天内且 VIX>=30 (新鲜); prolonged = 近 15 日里 >=25 的天数 >=10
+    (容忍单日回落, 否则震荡熊市全被切成碎片); prolonged 优先于 acute, 深陷危机第 45 天的
+    VIX=35 不再被贴成"新鲜恐慌"。所有量只用过去数据 (rolling), 无前视。"""
     v = vix.astype(float)
-    above25 = (v >= 25).astype(int)
-    run = above25.groupby((above25 != above25.shift()).cumsum()).cumsum() * above25
-    max10 = v.rolling(10).max()
+    ge25 = (v >= 25).astype(int)
+    cnt15 = ge25.rolling(15, min_periods=1).sum()
+    in_ep = cnt15 >= 1
+    age = in_ep.groupby((in_ep != in_ep.shift()).cumsum()).cumsum() * in_ep   # 事件年龄 (天)
     max20 = v.rolling(20).max()
+    prolonged = cnt15 >= 10
     st = pd.Series("calm", index=v.index)
     st[v >= 20] = "elevated"
-    st[(run >= 10)] = "prolonged"
-    st[(run >= 10) & (v <= 0.8 * max20)] = "prolonged_easing"
-    st[(v >= 30) & (v >= 0.95 * max10)] = "acute"
+    st[(v >= 30) & (age <= 7) & ~prolonged] = "acute"
+    st[prolonged] = "prolonged"
+    st[prolonged & (v <= 0.8 * max20)] = "prolonged_easing"
     return st
 
 
-def forward_table(spx: pd.Series, groups: pd.Series, label: str) -> list:
-    """各组别随后 21/63/126 日收益分布 (每5日抽样减少重叠)。"""
+def _episode_ids(pos: np.ndarray, gap: int) -> np.ndarray:
+    """相邻样本间隔 > gap 个交易日 -> 新的独立事件。"""
+    if len(pos) == 0:
+        return np.array([], dtype=int)
+    ids = np.zeros(len(pos), dtype=int)
+    for i in range(1, len(pos)):
+        ids[i] = ids[i - 1] + (1 if pos[i] - pos[i - 1] > gap else 0)
+    return ids
+
+
+def forward_table(spx: pd.Series, groups: pd.Series, label: str, boot: int = 400) -> list:
+    """各组别随后 21/63/126 日收益分布。样本每5日抽取, 但 63/126 日窗口仍高度重叠, 所以同时给出
+    "独立事件数" (相隔 >126 日才算新事件) 和 3 个月中位数的事件级 bootstrap 95% 区间 ——
+    n 是重叠样本数, 统计显著性要看事件数和区间。"""
     out = []
     idx = spx.index
+    rng = np.random.default_rng(0)
     for g in sorted(groups.dropna().unique(), key=str):
         pos = np.where(groups.values == g)[0]
         pos = pos[::STRIDE]
-        row = {"group": str(g), "n": int(len(pos))}
+        row = {"group": str(g), "n": int(len(pos)), "n_ep": int(len(set(_episode_ids(pos, 126).tolist())))}
         for h in FWD:
             ok = pos[pos + h < len(idx)]
             if len(ok) < 5:
                 row[f"r{h}"] = None
                 continue
             r = spx.values[ok + h] / spx.values[ok] - 1.0
-            row[f"r{h}"] = {"mean": round(float(np.mean(r)) * 100, 2),
-                            "median": round(float(np.median(r)) * 100, 2),
-                            "pos": round(float(np.mean(r > 0)) * 100, 1),
-                            "p10": round(float(np.percentile(r, 10)) * 100, 2),
-                            "n": int(len(ok))}
+            cell = {"mean": round(float(np.mean(r)) * 100, 2),
+                    "median": round(float(np.median(r)) * 100, 2),
+                    "pos": round(float(np.mean(r > 0)) * 100, 1),
+                    "p10": round(float(np.percentile(r, 10)) * 100, 2),
+                    "n": int(len(ok))}
+            if h == 63 and boot:
+                ep = _episode_ids(ok, 126)
+                uniq = np.unique(ep)
+                meds = []
+                for _ in range(boot):
+                    pick = rng.choice(uniq, size=len(uniq), replace=True)
+                    sel = np.concatenate([r[ep == u] for u in pick])
+                    meds.append(np.median(sel))
+                cell["ci"] = [round(float(np.percentile(meds, 2.5)) * 100, 2),
+                              round(float(np.percentile(meds, 97.5)) * 100, 2)]
+            row[f"r{h}"] = cell
         out.append(row)
     return {"label": label, "rows": out}
 
@@ -212,14 +252,14 @@ def build() -> dict | None:
     if px is None or px.empty or "^VIX" not in px:
         log.warning("行情不可得, 跳过风险偏好指数")
         return None
-    vix, spx = px["^VIX"].dropna(), px["^GSPC"].dropna()
+    px = px[px["^GSPC"].notna()]                   # 只用美股交易日 (DXY 在美股假日也有行情)
+    vix, spx = px["^VIX"].ffill(limit=2), px["^GSPC"]
     parts = {}
-    # 恐慌 (反向)
+    # 恐慌 (反向)。SKEW 不用: 它在崩盘时反而下降 (波动率曲面变平), 方向与恐慌相反
     parts["fear"] = pd.concat([
         100 - _pct_rank(vix),
         100 - _pct_rank(vix - vix.shift(10)),
-        100 - _pct_rank(px["^VVIX"]) if "^VVIX" in px else None,
-        100 - _pct_rank(px["^SKEW"]) if "^SKEW" in px else None,
+        100 - _pct_rank(px["^VVIX"].ffill(limit=2)) if "^VVIX" in px else None,
     ], axis=1).mean(axis=1)
     # 信用
     parts["credit"] = _pct_rank(_ret(px["HYG"] / px["IEF"], 20))

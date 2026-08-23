@@ -523,10 +523,10 @@
       sent_pct3y:"3年分位", sent_from_high:"距52周高点", sent_w:"权重",
       sent_pl_fear:"恐慌", sent_pl_credit:"信用", sent_pl_breadth:"广度", sent_pl_leader:"领涨", sent_pl_safety:"避险",
       sent_two_title:"近两周逐日", sent_sec_title:"板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）",
-      sent_val_title:"历史验证（1990年起，每5个交易日抽样）：各恐慌阶段之后标普的实际表现 — 中位数 · 正收益占比 · 最差10%分位",
+      sent_val_title:"历史验证（1990年起，每5个交易日抽样；n=重叠样本数，括号=独立事件数；3M 给出事件级 bootstrap 95% 区间）：各恐慌阶段之后标普的实际表现 — 中位数 · 正收益占比 · 最差10%分位",
       sent_c_date:"日期", sent_c_score:"指数", sent_c_b50:"站上50日线", sent_c_phase:"阶段", sent_c_sector:"板块", sent_c_rel:"相对标普", sent_c_rvol:"相对量", sent_c_board:"榜单候选",
       sent_p_acute:"🔥 新鲜恐慌", sent_p_prolonged:"🧊 持续恐慌", sent_p_easing:"🌅 恐慌缓解", sent_p_elevated:"⚠️ 温和恐慌", sent_p_complacent:"😴 过度乐观", sent_p_calm:"🟢 平静", sent_p_base:"全部日子（基准）",
-      sent_note:"指数 = 五大支柱在各自近3年历史中的百分位加权（恐慌30%·信用15%·广度25%·领涨20%·避险10%），方向统一为「越高越敢冒险」。广度来自我们自己数据库约4000只美股（站上50/200日线占比、新高减新低），比行情晚一个交易日。历史验证表直接回答「恐慌时该不该买」：1990年以来，VIX≥30的新鲜恐慌之后1个月中位收益为正（但最差10%跌幅也更深）；「持续恐慌」（VIX≥25连续≥10日）是风险收益比最好的阶段；真正危险的是「温和恐慌」——VIX在20-25徘徊、没有出清。Yahoo 的 VIX 期限结构系列自 2026-07-17 起停更，故未纳入。这是相对排位与历史基率，不是预测。",
+      sent_note:"指数 = 五大支柱在各自近3年历史中的百分位加权（恐慌30%·信用15%·广度25%·领涨20%·避险10%），方向统一为「越高越敢冒险」。广度来自我们自己数据库约4000只美股（站上50/200日线占比、新高减新低），比行情晚一个交易日。历史验证表直接回答「恐慌时该不该买」（1990年起，每阶段10-16个独立事件，3个月给事件级 bootstrap 区间）：① 新鲜恐慌（事件头7天内 VIX≥30）短期是硬币——1个月中位 -0.3%、正收益50%、最差分位 -15%，6个月才转好；② 持续恐慌（近15日≥25的天数≥10）是唯一统计上站得住的优势阶段——3个月中位 +6.7%、正收益79%、区间不含零且高于基准；③ 等「恐慌缓解」并不比持续恐慌更好，只是更晚；④ 「温和恐慌」（VIX 20-25 未出清）的6个月最差分位最深（-13%），是真正危险的区间。Yahoo 的 VIX 期限结构系列自 2026-07-17 起停更，故未纳入。这是相对排位与历史基率，不是预测。",
       // 交易日志
       jn_title:"📒 交易日志 · 模拟组合 — 记录你真正采纳的标的，系统跟踪结果",
       jn_export:"导出JSON", jn_import:"导入JSON", jn_add:"📒 记录买入（按计划）", jn_add_hint:"按计划入场价/止损/目标预填，可在日志里改",
@@ -733,10 +733,10 @@
       sent_pct3y:"3y pctile", sent_from_high:"from 52w high", sent_w:"weight",
       sent_pl_fear:"Fear", sent_pl_credit:"Credit", sent_pl_breadth:"Breadth", sent_pl_leader:"Leadership", sent_pl_safety:"Safety",
       sent_two_title:"Last two weeks", sent_sec_title:"Sector interest (10d return · vs S&P · relative volume · names on our board)",
-      sent_val_title:"Historical validation (since 1990, sampled every 5 days): S&P after each panic phase — median · % positive · worst decile",
+      sent_val_title:"Historical validation (since 1990, sampled every 5 days; n = overlapping samples, (episodes) = independent episodes; 3M shows an episode-level bootstrap 95% CI): S&P after each phase — median · % positive · worst decile",
       sent_c_date:"Date", sent_c_score:"Index", sent_c_b50:"Above 50d", sent_c_phase:"Phase", sent_c_sector:"Sector", sent_c_rel:"vs S&P", sent_c_rvol:"Rel vol", sent_c_board:"Board",
       sent_p_acute:"🔥 Fresh panic", sent_p_prolonged:"🧊 Prolonged panic", sent_p_easing:"🌅 Panic easing", sent_p_elevated:"⚠️ Mild fear", sent_p_complacent:"😴 Complacent", sent_p_calm:"🟢 Calm", sent_p_base:"All days (base)",
-      sent_note:"Index = weighted percentiles of five pillars vs their own 3-year history (fear 30% · credit 15% · breadth 25% · leadership 20% · safety 10%), oriented so higher = more risk appetite. Breadth is computed from our own ~4,000-stock database (share above 50/200-day MAs, new highs minus lows), one trading day behind. The validation table answers 'should you buy into panic': since 1990, fresh VIX≥30 panics had positive 1-month median returns (with deeper worst-decile drawdowns); 'prolonged panic' (VIX≥25 for ≥10 days) is the best risk/reward phase; the dangerous zone is 'mild fear' — VIX 20-25 that hasn't climaxed. Yahoo's VIX term-structure series stopped updating on 2026-07-17 and is excluded. A relative ranking plus historical base rates, not a forecast.",
+      sent_note:"Index = weighted percentiles of five pillars vs their own 3-year history (fear 30% · credit 15% · breadth 25% · leadership 20% · safety 10%), oriented so higher = more risk appetite. Breadth is computed from our own ~4,000-stock database (share above 50/200-day MAs, new highs minus lows), one trading day behind. The validation table answers 'should you buy into panic' (since 1990, 10-16 independent episodes per phase, episode-level bootstrap CI on the 3-month median): (1) fresh panic (VIX≥30 within the first 7 days of an episode) is a coin flip short term — 1-month median -0.3%, 50% positive, worst decile -15% — and only turns favourable by 6 months; (2) prolonged panic (VIX≥25 on ≥10 of the last 15 days) is the one phase with a statistically supported edge — 3-month median +6.7%, 79% positive, CI excludes zero and beats the base rate; (3) waiting for the panic to ease is not better than prolonged panic, just later; (4) 'mild fear' (VIX 20-25 without a climax) has the deepest 6-month worst decile (-13%) — the genuinely dangerous zone. Yahoo's VIX term-structure series stopped updating on 2026-07-17 and is excluded. A relative ranking plus historical base rates, not a forecast.",
       // Journal
       jn_title:"📒 Trade Journal · Paper Portfolio — log what you actually take; the system tracks the outcome",
       jn_export:"Export JSON", jn_import:"Import JSON", jn_add:"📒 Log entry (per plan)", jn_add_hint:"Prefilled with the plan's entry/stop/target; editable in the journal",
@@ -1077,9 +1077,9 @@
     const val=(S.validation&&S.validation.by_state)?S.validation.by_state.rows:[];
     const base=(S.validation&&S.validation.base&&S.validation.base.rows[0])||null;
     const rows=(base?[Object.assign({},base,{group:"base"})]:[]).concat(val);
-    const cell=r=>r?`<td class="text-right"><span class="${r.median>0?"text-emerald-300":"text-rose-300"}">${r.median>0?"+":""}${r.median.toFixed(1)}%</span> <span class="text-slate-500">${r.pos.toFixed(0)}%</span> <span class="text-rose-400/80">${r.p10.toFixed(1)}%</span></td>`:`<td class="text-right">${dash}</td>`;
+    const cell=r=>r?`<td class="text-right"><span class="${r.median>0?"text-emerald-300":"text-rose-300"}">${r.median>0?"+":""}${r.median.toFixed(1)}%</span> <span class="text-slate-500">${r.pos.toFixed(0)}%</span> <span class="text-rose-400/80">${r.p10.toFixed(1)}%</span>${(r.ci&&r.ci.length===2)?`<div class="text-[10px] text-slate-500">CI ${r.ci[0]>0?"+":""}${r.ci[0].toFixed(1)}…${r.ci[1]>0?"+":""}${r.ci[1].toFixed(1)}%</div>`:""}</td>`:`<td class="text-right">${dash}</td>`;
     $("#sentVal").innerHTML=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">${t("sent_c_phase")}</th><th class="text-right">n</th><th class="text-right">1M</th><th class="text-right">3M</th><th class="text-right">6M</th></tr>`+
-      rows.map(r=>`<tr class="border-t border-slate-700/40 ${r.group===S.phase?"bg-sky-500/10":""}"><td class="py-0.5">${t((PH[r.group]||["sent_p_"+r.group])[0])}${r.group===S.phase?" ◀":""}</td><td class="text-right text-slate-400">${r.n}</td>${cell(r.r21)}${cell(r.r63)}${cell(r.r126)}</tr>`).join("");
+      rows.map(r=>`<tr class="border-t border-slate-700/40 ${r.group===S.phase?"bg-sky-500/10":""}"><td class="py-0.5">${t((PH[r.group]||["sent_p_"+r.group])[0])}${r.group===S.phase?" ◀":""}</td><td class="text-right text-slate-400">${r.n}${isNum(r.n_ep)?` <span class="text-slate-500">(${r.n_ep})</span>`:""}</td>${cell(r.r21)}${cell(r.r63)}${cell(r.r126)}</tr>`).join("");
     $("#sentNote").textContent=t("sent_note");
   }
   window.renderSentiment=renderSentiment;
