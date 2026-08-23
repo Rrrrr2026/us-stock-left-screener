@@ -9,6 +9,7 @@
 <script src="dashboard_data.js"></script>
 <script src="backtest_data.js"></script>
 <script src="quality_data.js"></script>
+<script src="sentiment_data.js"></script>
 <script src="leftside_shared.js"></script>
 <style>
   :root{
@@ -139,6 +140,40 @@
     </div>
     <div id="oppChips" class="flex flex-wrap gap-2 mt-2"></div>
     <div id="oppNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
+  </section>
+
+  <!-- 🌡️ 市场风险偏好 (S&P 500 自上而下) -->
+  <section id="sentCard" class="card p-4 mb-5 hidden" style="border-color:rgba(96,165,250,.45)">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+      <h4 class="sec-title" data-i18n="sent_title">🌡️ 市场风险偏好 — S&amp;P 500 现在是 risk-on 还是 risk-off？</h4>
+      <span id="sentMeta" class="text-xs text-slate-400"></span>
+    </div>
+    <div class="flex items-center gap-4 flex-wrap mb-2">
+      <div class="flex items-center gap-3 flex-none">
+        <div id="sentScore" class="text-4xl font-bold" style="min-width:86px">—</div>
+        <div id="sentPhase" class="badge" style="font-size:14px;padding:4px 12px">—</div>
+      </div>
+      <div class="flex-1 min-w-[240px]">
+        <div class="barbg" style="height:10px"><div id="sentBar" class="barfill" style="width:2%;height:10px"></div></div>
+        <div class="flex justify-between text-[10px] text-slate-500 mt-0.5"><span data-i18n="sent_s0">0 极度避险</span><span data-i18n="sent_s40">40</span><span data-i18n="sent_s60">60</span><span data-i18n="sent_s80">80 极度贪婪</span><span>100</span></div>
+      </div>
+    </div>
+    <div id="sentPillars" class="flex flex-wrap gap-2 mb-3"></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div>
+        <div class="text-xs text-slate-400 mb-1" data-i18n="sent_two_title">近两周逐日</div>
+        <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentTwo"></table></div>
+      </div>
+      <div>
+        <div class="text-xs text-slate-400 mb-1" data-i18n="sent_sec_title">板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）</div>
+        <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentSec"></table></div>
+      </div>
+    </div>
+    <div class="mt-3">
+      <div class="text-xs text-slate-400 mb-1" data-i18n="sent_val_title">历史验证（1990年起）：各恐慌阶段之后标普的实际表现（中位数 / 正收益占比 / 最差10%）</div>
+      <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentVal"></table></div>
+    </div>
+    <div id="sentNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
   </section>
 
   <!-- 📊 信号回测 -->
@@ -482,6 +517,16 @@
       // 错杀候选
       cs_title:"💎 错杀候选 — 高质量·情绪性下跌·高度关注",
       cs_filter:"💎 错杀候选", cs_popup_title:"错杀检测",
+      // 市场风险偏好
+      sent_title:"🌡️ 市场风险偏好 — S&P 500 现在是 risk-on 还是 risk-off？",
+      sent_s0:"0 极度避险", sent_s40:"40", sent_s60:"60", sent_s80:"80 极度贪婪",
+      sent_pct3y:"3年分位", sent_from_high:"距52周高点", sent_w:"权重",
+      sent_pl_fear:"恐慌", sent_pl_credit:"信用", sent_pl_breadth:"广度", sent_pl_leader:"领涨", sent_pl_safety:"避险",
+      sent_two_title:"近两周逐日", sent_sec_title:"板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）",
+      sent_val_title:"历史验证（1990年起，每5个交易日抽样）：各恐慌阶段之后标普的实际表现 — 中位数 · 正收益占比 · 最差10%分位",
+      sent_c_date:"日期", sent_c_score:"指数", sent_c_b50:"站上50日线", sent_c_phase:"阶段", sent_c_sector:"板块", sent_c_rel:"相对标普", sent_c_rvol:"相对量", sent_c_board:"榜单候选",
+      sent_p_acute:"🔥 新鲜恐慌", sent_p_prolonged:"🧊 持续恐慌", sent_p_easing:"🌅 恐慌缓解", sent_p_elevated:"⚠️ 温和恐慌", sent_p_complacent:"😴 过度乐观", sent_p_calm:"🟢 平静", sent_p_base:"全部日子（基准）",
+      sent_note:"指数 = 五大支柱在各自近3年历史中的百分位加权（恐慌30%·信用15%·广度25%·领涨20%·避险10%），方向统一为「越高越敢冒险」。广度来自我们自己数据库约4000只美股（站上50/200日线占比、新高减新低），比行情晚一个交易日。历史验证表直接回答「恐慌时该不该买」：1990年以来，VIX≥30的新鲜恐慌之后1个月中位收益为正（但最差10%跌幅也更深）；「持续恐慌」（VIX≥25连续≥10日）是风险收益比最好的阶段；真正危险的是「温和恐慌」——VIX在20-25徘徊、没有出清。Yahoo 的 VIX 期限结构系列自 2026-07-17 起停更，故未纳入。这是相对排位与历史基率，不是预测。",
       // 交易日志
       jn_title:"📒 交易日志 · 模拟组合 — 记录你真正采纳的标的，系统跟踪结果",
       jn_export:"导出JSON", jn_import:"导入JSON", jn_add:"📒 记录买入（按计划）", jn_add_hint:"按计划入场价/止损/目标预填，可在日志里改",
@@ -682,6 +727,16 @@
       // Mispriced candidates
       cs_title:"💎 Mispriced — quality names in emotional selloffs · high attention",
       cs_filter:"💎 Mispriced", cs_popup_title:"Mispricing check",
+      // Market risk appetite
+      sent_title:"🌡️ Market Risk Appetite — is the S&P 500 risk-on or risk-off right now?",
+      sent_s0:"0 extreme fear", sent_s40:"40", sent_s60:"60", sent_s80:"80 extreme greed",
+      sent_pct3y:"3y pctile", sent_from_high:"from 52w high", sent_w:"weight",
+      sent_pl_fear:"Fear", sent_pl_credit:"Credit", sent_pl_breadth:"Breadth", sent_pl_leader:"Leadership", sent_pl_safety:"Safety",
+      sent_two_title:"Last two weeks", sent_sec_title:"Sector interest (10d return · vs S&P · relative volume · names on our board)",
+      sent_val_title:"Historical validation (since 1990, sampled every 5 days): S&P after each panic phase — median · % positive · worst decile",
+      sent_c_date:"Date", sent_c_score:"Index", sent_c_b50:"Above 50d", sent_c_phase:"Phase", sent_c_sector:"Sector", sent_c_rel:"vs S&P", sent_c_rvol:"Rel vol", sent_c_board:"Board",
+      sent_p_acute:"🔥 Fresh panic", sent_p_prolonged:"🧊 Prolonged panic", sent_p_easing:"🌅 Panic easing", sent_p_elevated:"⚠️ Mild fear", sent_p_complacent:"😴 Complacent", sent_p_calm:"🟢 Calm", sent_p_base:"All days (base)",
+      sent_note:"Index = weighted percentiles of five pillars vs their own 3-year history (fear 30% · credit 15% · breadth 25% · leadership 20% · safety 10%), oriented so higher = more risk appetite. Breadth is computed from our own ~4,000-stock database (share above 50/200-day MAs, new highs minus lows), one trading day behind. The validation table answers 'should you buy into panic': since 1990, fresh VIX≥30 panics had positive 1-month median returns (with deeper worst-decile drawdowns); 'prolonged panic' (VIX≥25 for ≥10 days) is the best risk/reward phase; the dangerous zone is 'mild fear' — VIX 20-25 that hasn't climaxed. Yahoo's VIX term-structure series stopped updating on 2026-07-17 and is excluded. A relative ranking plus historical base rates, not a forecast.",
       // Journal
       jn_title:"📒 Trade Journal · Paper Portfolio — log what you actually take; the system tracks the outcome",
       jn_export:"Export JSON", jn_import:"Import JSON", jn_add:"📒 Log entry (per plan)", jn_add_hint:"Prefilled with the plan's entry/stop/target; editable in the journal",
@@ -960,7 +1015,8 @@
       if(sb&&dd){ const age=Math.floor((Date.now()-new Date(dd+"T00:00:00").getTime())/86400000);
         if(age>4){ sb.classList.remove("hidden"); sb.textContent=`${t("stale_a")}${age}${t("stale_b")}${dd}${t("stale_c")}`; } else sb.classList.add("hidden"); }
     }catch(e){}
-    setTimeout(()=>{ if(window.LS&&LS.ready) LS.renderBacktest(); }, 0);   // 延后一拍: 首次调用时表格区的工具函数(const)尚未初始化
+    setTimeout(()=>{ if(window.LS&&LS.ready) LS.renderBacktest(); }, 0);
+    setTimeout(()=>{ if(window.renderSentiment) renderSentiment(); }, 0);   // 延后一拍: 首次调用时表格区的工具函数(const)尚未初始化
     setTimeout(()=>{ if(window.LS&&LS.ready) LS.renderCuosha(); }, 0);
     setTimeout(()=>{ if(window.LS&&LS.ready) LS.renderQuality(); }, 0);
     setTimeout(()=>{ if(window.LS&&LS.ready) LS.renderJournal(); }, 0);
@@ -996,6 +1052,37 @@
     }).join("");
     $("#oppNote").textContent = t("opp_note");
   }
+  // ---------- 🌡️ 市场风险偏好 (S&P 500) ----------
+  function renderSentiment(){
+    const card=$("#sentCard"); if(!card) return;
+    const S=window.__SENT__;
+    if(!S||!isNum(S.score)){ card.classList.add("hidden"); return; }
+    card.classList.remove("hidden");
+    const sc=S.score; const col = sc>=75?"#f87171":(sc>=60?"#fbbf24":(sc>=40?"#60a5fa":"#a78bfa"));
+    $("#sentScore").textContent=sc.toFixed(0); $("#sentScore").style.color=col;
+    const PH={acute:["sent_p_acute","tag-warn"],prolonged:["sent_p_prolonged","tag-warn"],prolonged_easing:["sent_p_easing","tag-coil"],elevated:["sent_p_elevated","tag-watch"],complacent:["sent_p_complacent","tag-warn"],calm:["sent_p_calm","tag-strong"]};
+    const ph=PH[S.phase]||["sent_p_calm","tag-watch"];
+    const pe=$("#sentPhase"); pe.textContent=t(ph[0]); pe.className="badge "+ph[1]; pe.style.fontSize="14px"; pe.style.padding="4px 12px";
+    const bar=$("#sentBar"); bar.style.width=Math.max(2,Math.min(100,sc))+"%"; bar.style.background=col;
+    const V=S.vix||{}, X=S.spx||{};
+    $("#sentMeta").textContent=`${S.meta.date} · VIX ${V.now} (${t("sent_pct3y")} ${isNum(V.pct3y)?V.pct3y.toFixed(0):dash}%) · S&P ${X.now} (${t("sent_from_high")} ${isNum(X.from_52w_high)?X.from_52w_high.toFixed(1):dash}%)`;
+    const P=S.pillars||{}, W=S.meta.weights||{};
+    $("#sentPillars").innerHTML=Object.keys(W).map(k=>{ const v=P[k]; const hot=isNum(v)&&v>=70, cold=isNum(v)&&v<=30; return `<span class="badge ${hot?"tag-strong":(cold?"tag-warn":"tag-watch")}" title="${t("sent_w")} ${(W[k]*100).toFixed(0)}%">${t("sent_pl_"+k)} ${isNum(v)?v.toFixed(0):dash}</span>`; }).join("");
+    const tw=S.two_weeks||[];
+    $("#sentTwo").innerHTML=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">${t("sent_c_date")}</th><th class="text-right">${t("sent_c_score")}</th><th class="text-right">VIX</th><th class="text-right">S&amp;P</th><th class="text-right">${t("sent_c_b50")}</th><th class="text-left pl-2">${t("sent_c_phase")}</th></tr>`+
+      tw.map(r=>`<tr class="border-t border-slate-700/40"><td class="py-0.5 font-mono text-slate-400">${escH(r.d.slice(5))}</td><td class="text-right font-semibold" style="color:${r.score>=60?"#fbbf24":(r.score>=40?"#60a5fa":"#a78bfa")}">${r.score.toFixed(0)}</td><td class="text-right">${r.vix}</td><td class="text-right">${r.spx}</td><td class="text-right">${isNum(r.pct50)?r.pct50.toFixed(0)+"%":dash}</td><td class="pl-2 text-[11px] text-slate-400">${t((PH[r.phase]||["sent_p_calm"])[0])}</td></tr>`).join("");
+    const B=S.board_sectors||{}; const MAP={"科技":"Information Technology","可选消费":"Consumer Discretionary","金融":"Financials","通信":"Communication Services","工业":"Industrials","材料":"Materials","能源":"Energy","医疗":"Health Care","必需消费":"Consumer Staples","公用":"Utilities","地产":"Real Estate"};
+    $("#sentSec").innerHTML=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">${t("sent_c_sector")}</th><th class="text-right">10d</th><th class="text-right">${t("sent_c_rel")}</th><th class="text-right">${t("sent_c_rvol")}</th><th class="text-center">50d/200d</th><th class="text-right">${t("sent_c_board")}</th></tr>`+
+      (S.sectors||[]).map(x=>{ const b=B[MAP[x.name]]||{}; const rc=v=>!isNum(v)?"":(v>0?"text-emerald-300":"text-rose-300"); return `<tr class="border-t border-slate-700/40"><td class="py-0.5">${escH(x.name)} <span class="font-mono text-[10px] text-slate-500">${x.etf}</span></td><td class="text-right ${rc(x.r10)}">${isNum(x.r10)?(x.r10>0?"+":"")+x.r10.toFixed(1)+"%":dash}</td><td class="text-right ${rc(x.rel10)}">${isNum(x.rel10)?(x.rel10>0?"+":"")+x.rel10.toFixed(1)+"%":dash}</td><td class="text-right ${isNum(x.rvol)&&x.rvol>=1.2?"text-amber-300":""}">${isNum(x.rvol)?x.rvol.toFixed(2)+"×":dash}</td><td class="text-center">${x.above50?"✅":"❌"}${x.above200?"✅":"❌"}</td><td class="text-right">${b.n||0}${b.cs?` <span class="text-amber-300">💎${b.cs}</span>`:""}</td></tr>`; }).join("");
+    const val=(S.validation&&S.validation.by_state)?S.validation.by_state.rows:[];
+    const base=(S.validation&&S.validation.base&&S.validation.base.rows[0])||null;
+    const rows=(base?[Object.assign({},base,{group:"base"})]:[]).concat(val);
+    const cell=r=>r?`<td class="text-right"><span class="${r.median>0?"text-emerald-300":"text-rose-300"}">${r.median>0?"+":""}${r.median.toFixed(1)}%</span> <span class="text-slate-500">${r.pos.toFixed(0)}%</span> <span class="text-rose-400/80">${r.p10.toFixed(1)}%</span></td>`:`<td class="text-right">${dash}</td>`;
+    $("#sentVal").innerHTML=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">${t("sent_c_phase")}</th><th class="text-right">n</th><th class="text-right">1M</th><th class="text-right">3M</th><th class="text-right">6M</th></tr>`+
+      rows.map(r=>`<tr class="border-t border-slate-700/40 ${r.group===S.phase?"bg-sky-500/10":""}"><td class="py-0.5">${t((PH[r.group]||["sent_p_"+r.group])[0])}${r.group===S.phase?" ◀":""}</td><td class="text-right text-slate-400">${r.n}</td>${cell(r.r21)}${cell(r.r63)}${cell(r.r126)}</tr>`).join("");
+    $("#sentNote").textContent=t("sent_note");
+  }
+  window.renderSentiment=renderSentiment;
   // ---------- 共用看板功能见 leftside_shared.js (LS.init 在主脚本末尾) ----------
   const LS_MARKET = { key: "us", qlLink: code=>`https://www.tradingview.com/symbols/${encodeURIComponent(code)}/`, domFmt: r=>`#${r}` };
 

@@ -458,6 +458,11 @@ def run(use_cache=True):
     except Exception as e:
         log.warning("信号回测失败(不影响榜单与发布): %s", e)
     try:
+        from screener import sentiment
+        sentiment.build()
+    except Exception as e:
+        log.warning("市场风险偏好指数失败(不影响榜单与发布): %s", e)
+    try:
         from screener import qfund
         qfund.update_shard()
     except Exception as e:
