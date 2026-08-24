@@ -27,9 +27,9 @@ MAX_AGE_DAYS = 10
 
 _DDL = ("CREATE TABLE IF NOT EXISTS qfund("
         "code TEXT PRIMARY KEY, asof TEXT, name TEXT, sector TEXT, industry TEXT, "
-        "eps_q4_json TEXT, rev_yoy REAL, roe REAL, pe REAL, mcap REAL, next_earn TEXT)")
+        "eps_q4_json TEXT, rev_yoy REAL, roe REAL, pe REAL, mcap REAL, upside REAL, next_earn TEXT)")
 _COLS = ("code", "asof", "name", "sector", "industry", "eps_q4_json", "rev_yoy", "roe",
-         "pe", "mcap", "next_earn")
+         "pe", "mcap", "upside", "next_earn")
 
 
 def _shard_of(code: str) -> int:
@@ -61,6 +61,8 @@ def _one(code: str, uname: str, usector: str) -> dict | None:
         "rev_yoy": (rg * 100.0) if rg is not None else None,
         "roe": (roe * 100.0) if roe is not None else None,
         "pe": _num(info.get("trailingPE")), "mcap": _num(info.get("marketCap")),
+        "upside": (round((_num(info.get("targetMeanPrice")) / _num(info.get("currentPrice")) - 1) * 100.0, 1)
+                   if (_num(info.get("targetMeanPrice")) and _num(info.get("currentPrice"))) else None),
         "next_earn": epsh.get("next"),
     }
 

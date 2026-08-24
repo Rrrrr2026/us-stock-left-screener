@@ -45,7 +45,9 @@ TOP_N = 10
 SHORTLIST = 30
 STALE_DAYS = 14          # fundamental 行超过该天数视为过期, 不参与
 RD_GOOD, RD_OK = 5.0, 3.0
-GATE_KEYS = ("q4", "y4", "beat", "roe", "pe", "dom")
+GATE_KEYS = ("q4", "y4", "beat", "roe", "pe", "dom", "cap", "up")
+CAP_MIN = 10e9           # 蓝筹门槛: 市值 >= $10B
+UPSIDE_MIN = 20.0        # 盈利空间门槛: 分析师目标价上行 >= 20%
 
 
 def _loads(s, default=None):
@@ -123,6 +125,15 @@ def _long_hist(code: str):
 
 def build_quality(top_n: int = TOP_N) -> dict | None:
     funds = _latest_fundamentals()
+    # 蓝筹市值映射 (全股票池, NASDAQ 名单自带市值)
+    mcap_map = {}
+    try:
+        from . import datasource as _ds
+        _u = _ds.get_universe()
+        if _u is not None and "mcap" in _u.columns:
+            mcap_map = {str(r["code"]): float(r["mcap"]) for _, r in _u.iterrows() if r["mcap"] and r["mcap"] > 0}
+    except Exception as e:
+        log.warning("市值映射失败(蓝筹门槛降级): %s", e)
     # 并入 qfund (轮转抓取的全股票池基本面): 候选之外的股票也能进优质榜
     try:
         from . import qfund
@@ -138,6 +149,7 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
                 "run_date": r.get("asof"), "ni_qoq_json": r.get("eps_q4_json"),
                 "rev_qoq_json": json.dumps([r["rev_yoy"]] if r.get("rev_yoy") is not None else []),
                 "roe": r.get("roe"), "pe_ttm": r.get("pe"), "ni_ttm_yoy": None,
+                "upside_pct": r.get("upside"), "mcap": r.get("mcap"),
                 "dom_rank": dr[0] if dr else None, "dom_share": dr[1] if dr else None,
                 "src": "qfund",
             })
@@ -161,8 +173,12 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
         g_roe = bool(isinstance(roe, (int, float)) and roe >= ROE_MIN)
         g_pe = bool(isinstance(pe, (int, float)) and 0 < pe < PE_MAX)
         g_dom = bool(isinstance(dr, (int, float)) and dr <= DOM_RANK_MAX)
-        n_pre = sum((g_q4, g_roe, g_pe, g_dom))
-        if n_pre < 3:                    # 存量门槛先过3条才有资格进短名单
+        mcap = mcap_map.get(str(f["code"])) or (f.get("mcap") if isinstance(f.get("mcap"), (int, float)) else None)
+        g_cap = bool(mcap is not None and mcap >= CAP_MIN)
+        upside = f.get("upside_pct") if isinstance(f.get("upside_pct"), (int, float)) else None
+        g_up = bool(upside is not None and upside >= UPSIDE_MIN)
+        n_pre = sum((g_q4, g_roe, g_pe, g_dom, g_cap, g_up))
+        if n_pre < 4:                    # 8 个门槛更严: 存量门槛先过 4 条才有资格进短名单
             continue
         score = 0.0
         if isinstance(roe, (int, float)):
@@ -177,6 +193,10 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
         accel = bool(ni_q4 and isinstance(ttm, (int, float)) and ni_q4[-1] >= ttm)
         if accel:
             score += 8.0
+        if upside is not None:
+            score += min(15.0, max(0.0, upside) / 4.0)      # 盈利空间加分 (60%+ 拉满)
+        if g_cap:
+            score += 5.0
         rows.append({
             "code": f["code"], "name": f.get("name"), "industry": f.get("industry"),
             "run_date": f.get("run_date"),
@@ -184,10 +204,12 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
             "roe": round(roe, 1) if isinstance(roe, (int, float)) else None,
             "dom_rank": dr,
             "dom_share": f.get("dom_share"),
+            "mcap_b": round(mcap / 1e9, 1) if mcap else None,
+            "upside": round(upside, 1) if upside is not None else None,
             "ni_q4": [round(v, 1) for v in ni_q4[-4:]] if ni_q4 else None,
             "rev_q4": [round(v, 1) for v in rev_q4[-4:]] if rev_q4 else None,
             "accel": accel,
-            "gates": {"q4": g_q4, "roe": g_roe, "pe": g_pe, "dom": g_dom},
+            "gates": {"q4": g_q4, "roe": g_roe, "pe": g_pe, "dom": g_dom, "cap": g_cap, "up": g_up},
             "score": round(score, 1),
         })
     rows.sort(key=lambda r: (-sum(r["gates"].values()), -(r["score"] or 0)))

@@ -472,6 +472,11 @@ def run(use_cache=True):
         ql.build_quality()
     except Exception as e:
         log.warning("优质榜构建失败(不影响榜单与发布): %s", e)
+    try:
+        from screener import paper
+        paper.update_portfolio()
+    except Exception as e:
+        log.warning("自动模拟组合更新失败(不影响榜单与发布): %s", e)
     log.info("✅ 全部完成。请双击打开 dashboard/index.html")
 
 

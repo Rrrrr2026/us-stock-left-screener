@@ -250,8 +250,61 @@ LS.init = function(ctx){
   $("#jnExport").onclick = ()=>{ const blob=new Blob([JSON.stringify(jnLoad(),null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="journal.json"; a.click(); };
   $("#jnImport").onchange = (e)=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ const arr=JSON.parse(rd.result); if(Array.isArray(arr)){ const cur=jnLoad(); const ids=new Set(cur.map(x=>x.id)); arr.forEach(x=>{ if(x&&x.id&&!ids.has(x.id)) cur.push(x); }); jnSave(cur); renderJournal(); } }catch(err){ alert("bad json"); } }; rd.readAsText(f); e.target.value=""; };
   $("#jnAddBtn").onclick = ()=>{ if(getCur()) jnAdd(getCur()); };
+
+  // ---------- 🤖 自动模拟组合 (paper_data.js -> window.__PP__) ----------
+  function renderPaper(){
+    const el = $("#ppWrap");
+    if(!el) return;
+    const P = window.__PP__;
+    if(!P || !P.total){ el.innerHTML = ""; return; }
+    const cur = (P.meta&&P.meta.currency)||"$";
+    const money = v => v==null? dash : (v<0?"−":"+")+cur+Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+    const pcx = v => v==null? dash : (v>0?"+":"")+v.toFixed(1)+"%";
+    const CATN = {quality:t("pp_cat_quality"), cuosha:t("pp_cat_cuosha"), coil:t("pp_cat_coil"), dip:t("pp_cat_dip")};
+    const STN = {won:t("pp_won"), stopped:t("pp_stopped"), expired:t("pp_expired")};
+    const tot = P.total, totPnl = (tot.realized||0)+(tot.unrealized||0);
+    const budget = (P.meta&&P.meta.budget)? cur+P.meta.budget.toLocaleString() : "";
+    const chips = Object.entries(P.by_cat||{}).map(([k,a])=>{
+      const pnl=(a.realized||0)+(a.unrealized||0);
+      return `<div class="rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1.5 text-xs">
+        <div class="text-slate-400">${CATN[k]||k}</div>
+        <div class="mt-0.5 text-slate-300">${t("pp_open")} <b>${a.n_open}</b> · ${t("pp_resolved")} <b>${a.n_resolved}</b>${a.win_rate!=null?` · ${t("pp_win")} <b class="${a.win_rate>=50?"text-emerald-300":"text-amber-300"}">${a.win_rate}%</b>`:""}</div>
+        <div class="font-semibold ${pnl>0?"text-emerald-300":(pnl<0?"text-rose-300":"text-slate-300")}">${money(pnl)}${a.avg_ret!=null?` <span class="text-[10px] text-slate-500 font-normal">${t("pp_avg")} ${pcx(a.avg_ret)}</span>`:""}</div>
+      </div>`;
+    }).join("");
+    const rowStock = r => `<td class="py-1"><b>${escH(r.name||"")}</b> <span class="font-mono text-xs text-slate-400">${escH(r.code)}</span> <span class="text-[10px] text-slate-400">${CATN[r.cat]||r.cat}</span></td>`;
+    const openRows = (P.open||[]).map(r=>`<tr class="border-t border-slate-700/40">${rowStock(r)}
+      <td class="text-xs text-slate-400">${escH(r.fill_date||"")}</td>
+      <td class="text-right">${isNum(r.fill_px)?r.fill_px:dash}</td>
+      <td class="text-right">${isNum(r.exit_px)?r.exit_px:dash}</td>
+      <td class="text-right font-semibold ${r.ret>0?"text-emerald-300":(r.ret<0?"text-rose-300":"")}">${pcx(r.ret*100)}</td>
+      <td class="text-right ${r.pnl>0?"text-emerald-300":(r.pnl<0?"text-rose-300":"")}">${money(r.pnl)}</td></tr>`).join("");
+    const closedRows = (P.recent||[]).map(r=>`<tr class="border-t border-slate-700/40">${rowStock(r)}
+      <td class="text-xs text-slate-400">${escH(r.fill_date||"")} → ${escH(r.exit_date||"")}</td>
+      <td class="text-right">${isNum(r.fill_px)?r.fill_px:dash}</td>
+      <td class="text-right">${isNum(r.exit_px)?r.exit_px:dash}</td>
+      <td class="text-right font-semibold ${r.ret>0?"text-emerald-300":(r.ret<0?"text-rose-300":"")}">${pcx(r.ret*100)}</td>
+      <td class="text-right">${STN[r.status]||r.status}</td></tr>`).join("");
+    const th = cols => `<tr class="text-slate-400 text-[11px]">${cols.map((c,i)=>`<th class="${i? "text-right":"text-left"} py-1 ${i===1?"!text-left":""}">${c}</th>`).join("")}</tr>`;
+    el.innerHTML = `
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="text-sm font-semibold text-indigo-300">${t("pp_title")} <span class="text-xs text-slate-400 font-normal">${t("pp_sub").replace("__B__", budget)}</span></div>
+        <div class="text-xs ${totPnl>0?"text-emerald-300":(totPnl<0?"text-rose-300":"text-slate-400")}">${t("pp_total")} <b>${money(totPnl)}</b>${tot.win_rate!=null?` · ${t("pp_win")} ${tot.win_rate}%`:""} <span class="text-slate-500">(${P.meta.as_of||""})</span></div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">${chips}</div>
+      <details class="mt-2">
+        <summary class="text-xs text-slate-400 cursor-pointer select-none hover:text-sky-300">${t("pp_details")} (${(P.open||[]).length} / ${(P.recent||[]).length})</summary>
+        ${(P.open||[]).length? `<div class="text-xs text-slate-400 mt-2 mb-1">${t("pp_open_title")}</div>
+        <div class="overflow-x-auto"><table class="w-full text-[13px]">${th([t("pp_col_stock"),t("pp_col_fill"),t("pp_col_entry"),t("pp_col_now"),t("pp_col_ret"),t("pp_col_pnl")])}${openRows}</table></div>`:""}
+        ${(P.recent||[]).length? `<div class="text-xs text-slate-400 mt-3 mb-1">${t("pp_closed_title")}</div>
+        <div class="overflow-x-auto"><table class="w-full text-[13px]">${th([t("pp_col_stock"),t("pp_col_dates"),t("pp_col_entry"),t("pp_col_exit"),t("pp_col_ret"),t("pp_col_status")])}${closedRows}</table></div>`:""}
+        ${!(P.open||[]).length&&!(P.recent||[]).length? `<div class="text-xs text-slate-500 mt-2">${t("pp_empty")}</div>`:""}
+        <div class="text-xs text-slate-500 mt-2 leading-relaxed">${t("pp_note")}</div>
+      </details>
+      <div class="border-t border-slate-700/50 my-3"></div>`;
+  }
   window.btOpen = btOpen;
   LS.renderBacktest = renderBacktest; LS.renderCuosha = renderCuosha; LS.renderQuality = renderQuality;
-  LS.renderJournal = renderJournal; LS.btOpen = btOpen;
+  LS.renderJournal = renderJournal; LS.renderPaper = renderPaper; LS.btOpen = btOpen;
   LS.ready = true;
 };
