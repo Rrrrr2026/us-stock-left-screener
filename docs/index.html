@@ -102,7 +102,7 @@
   </header>
 
   <!-- 免责声明 -->
-  <div class="card border-amber-500/40 bg-amber-500/5 px-4 py-3 mb-4 text-[13px] leading-relaxed text-amber-200/90" data-i18n-html="disclaimer">
+  <div class="card border-amber-500/40 bg-amber-500/5 px-3 py-1.5 mb-2 text-[11px] leading-snug text-amber-200/80" data-i18n-html="disclaimer">
     ⚠️ <b>免责声明</b>：本系统仅对美股做技术/基本面数据的自动化整理与形态筛选，<b>不构成任何投资建议</b>。
     "左侧买入"是在下跌中、支撑确认前进场，风险天然更高（可能继续下跌或破位）。价格单位为美元(USD)。
     所有标的需<b>人工复核</b>，使用者自负盈亏与风控。
@@ -113,11 +113,11 @@
   <div id="staleBanner" class="hidden card border-rose-500/50 bg-rose-500/10 px-4 py-2 mb-4 text-[13px] leading-relaxed text-rose-200"></div>
 
   <!-- 概览卡 -->
-  <section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-    <div class="card p-4"><div class="text-slate-400 text-xs" data-i18n="ov_scanned">今日扫描数</div><div id="ovScanned" class="text-2xl font-bold text-white mt-1">—</div></div>
-    <div class="card p-4"><div class="text-slate-400 text-xs" data-i18n="ov_hit">命中候选数</div><div id="ovHit" class="text-2xl font-bold text-sky-300 mt-1">—</div></div>
-    <div class="card p-4"><div class="text-slate-400 text-xs" data-i18n="ov_inds">入选景气板块</div><div id="ovInds" class="text-2xl font-bold text-emerald-300 mt-1">—</div></div>
-    <div class="card p-4"><div class="text-slate-400 text-xs" data-i18n="ov_date">数据日期</div><div id="ovDate" class="text-2xl font-bold text-white mt-1">—</div></div>
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+    <div class="card p-2.5"><div class="text-slate-400 text-[11px]" data-i18n="ov_scanned">今日扫描数</div><div id="ovScanned" class="text-lg font-bold text-white mt-0.5">—</div></div>
+    <div class="card p-2.5"><div class="text-slate-400 text-[11px]" data-i18n="ov_hit">命中候选数</div><div id="ovHit" class="text-lg font-bold text-sky-300 mt-0.5">—</div></div>
+    <div class="card p-2.5"><div class="text-slate-400 text-[11px]" data-i18n="ov_inds">入选景气板块</div><div id="ovInds" class="text-lg font-bold text-emerald-300 mt-0.5">—</div></div>
+    <div class="card p-2.5"><div class="text-slate-400 text-[11px]" data-i18n="ov_date">数据日期</div><div id="ovDate" class="text-lg font-bold text-white mt-0.5">—</div></div>
   </section>
   <!-- 派生统计条 -->
   <section id="ovStrip" class="flex flex-wrap gap-2 mb-3"></section>
@@ -143,70 +143,69 @@
   </section>
 
   <!-- 🌡️ 市场风险偏好 (S&P 500 自上而下) -->
-  <section id="sentCard" class="card p-4 mb-5 hidden" style="border-color:rgba(96,165,250,.45)">
-    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+  <section id="sentCard" class="card p-3 mb-3 hidden" style="border-color:rgba(96,165,250,.45)">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
       <h4 class="sec-title" data-i18n="sent_title">🌡️ 市场风险偏好 — S&amp;P 500 现在是 risk-on 还是 risk-off？</h4>
       <span id="sentMeta" class="text-xs text-slate-400"></span>
     </div>
-    <div class="flex items-center gap-4 flex-wrap mb-2">
+    <div class="flex items-center gap-4 flex-wrap">
       <div class="flex items-center gap-3 flex-none">
-        <div id="sentScore" class="text-4xl font-bold" style="min-width:86px">—</div>
-        <div id="sentPhase" class="badge" style="font-size:14px;padding:4px 12px">—</div>
+        <div id="sentScore" class="text-3xl font-bold" style="min-width:64px">—</div>
+        <div id="sentPhase" class="badge" style="font-size:13px;padding:3px 10px">—</div>
       </div>
-      <div class="flex-1 min-w-[240px]">
-        <div class="barbg" style="height:10px"><div id="sentBar" class="barfill" style="width:2%;height:10px"></div></div>
-        <div class="flex justify-between text-[10px] text-slate-500 mt-0.5"><span data-i18n="sent_s0">0 极度避险</span><span data-i18n="sent_s40">40</span><span data-i18n="sent_s60">60</span><span data-i18n="sent_s80">80 极度贪婪</span><span>100</span></div>
+      <div class="flex-1 min-w-[200px]">
+        <div class="barbg" style="height:8px"><div id="sentBar" class="barfill" style="width:2%;height:8px"></div></div>
+        <div class="flex justify-between text-[10px] text-slate-500 mt-0.5"><span data-i18n="sent_s0">0 极度避险</span><span data-i18n="sent_s80">80 极度贪婪</span></div>
       </div>
+      <div id="sentPillars" class="flex flex-wrap gap-1.5"></div>
     </div>
-    <div id="sentPillars" class="flex flex-wrap gap-2 mb-3"></div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div>
-        <div class="text-xs text-slate-400 mb-1" data-i18n="sent_two_title">近两周逐日</div>
-        <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentTwo"></table></div>
+    <div id="sentVerdict" class="text-[13px] text-slate-200 leading-relaxed mt-2"></div>
+    <div id="sentStrip" class="flex flex-wrap items-center gap-2 mt-2 text-[12px]"></div>
+    <details class="mt-2">
+      <summary class="text-xs text-slate-400 cursor-pointer select-none hover:text-sky-300" data-i18n="sent_details">详情：近两周逐日 · 板块全表 · 历史验证（1990年起）</summary>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+        <div>
+          <div class="text-xs text-slate-400 mb-1" data-i18n="sent_two_title">近两周逐日</div>
+          <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentTwo"></table></div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400 mb-1" data-i18n="sent_sec_title">板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）</div>
+          <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentSec"></table></div>
+        </div>
       </div>
-      <div>
-        <div class="text-xs text-slate-400 mb-1" data-i18n="sent_sec_title">板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）</div>
-        <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentSec"></table></div>
+      <div class="mt-3">
+        <div class="text-xs text-slate-400 mb-1" data-i18n="sent_val_title">历史验证</div>
+        <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentVal"></table></div>
       </div>
-    </div>
-    <div class="mt-3">
-      <div class="text-xs text-slate-400 mb-1" data-i18n="sent_val_title">历史验证（1990年起）：各恐慌阶段之后标普的实际表现（中位数 / 正收益占比 / 最差10%）</div>
-      <div class="overflow-x-auto"><table class="w-full text-[12px]" id="sentVal"></table></div>
-    </div>
-    <div id="sentNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
+      <div id="sentNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
+    </details>
   </section>
 
   <!-- 📊 信号回测 -->
-  <section id="btCard" class="card p-4 mb-5 hidden" style="border-color:rgba(52,211,153,.35)">
-    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+  <section id="btCard" class="card p-3 mb-3 hidden" style="border-color:rgba(52,211,153,.35)">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-1">
       <h4 class="sec-title" data-i18n="bt_title">📊 信号回测 — 过去发出的建议，真实走成了什么样？</h4>
       <span id="btMeta" class="text-xs text-slate-400"></span>
     </div>
-    <div id="btStats" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3"></div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div>
-        <div class="text-xs text-slate-400 mb-1" data-i18n="bt_seg_title">按标签（已了结信号）</div>
-        <div class="overflow-x-auto"><table class="w-full text-[13px]" id="btTagTbl"></table></div>
+    <div class="text-[11px] text-slate-400 mb-2 leading-snug" data-i18n="bt_how">怎么读：系统每天给出的买卖点，事后用真实行情检验。「达标」= 按建议买入后 20 个交易日内先涨到 +10%（而不是先碰止损）；「达标率」= 同类信号过去达标的比例；「平均净收益」= 含成本的每笔平均结果。</div>
+    <div id="btStats" class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2"></div>
+    <div class="text-xs text-slate-400 mb-1" data-i18n="bt_reco_title">📈 回测优选 — 今日候选中，其信号类型过去达标率最高的</div>
+    <div id="btRecos" class="flex flex-wrap gap-2"></div>
+    <details class="mt-2">
+      <summary class="text-xs text-slate-400 cursor-pointer select-none hover:text-sky-300" data-i18n="bt_details">详情：按标签 · 按市场温度/成长质量 · 最近了结 · 方法说明</summary>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
+        <div>
+          <div class="text-xs text-slate-400 mb-1" data-i18n="bt_seg_title">按标签（已了结信号）</div>
+          <div class="overflow-x-auto"><table class="w-full text-[13px]" id="btTagTbl"></table></div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400 mb-1" data-i18n="bt_dim_title">按市场温度 / 成长质量（胜率）</div>
+          <div id="btDims" class="flex flex-wrap gap-2"></div>
+          <div id="btRecent" class="mt-3"></div>
+        </div>
       </div>
-      <div>
-        <div class="text-xs text-slate-400 mb-1" data-i18n="bt_dim_title">按市场温度 / 成长质量（胜率）</div>
-        <div id="btDims" class="flex flex-wrap gap-2"></div>
-        <div class="text-xs text-slate-400 mt-3 mb-1" data-i18n="bt_reco_title">📈 回测优选 — 今日候选中，历史同类信号战绩达标的</div>
-        <div id="btRecos" class="flex flex-wrap gap-2"></div>
-        <div id="btRecent" class="mt-3"></div>
-      </div>
-    </div>
-    <div id="btNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
-  </section>
-
-  <!-- 💎 错杀候选 (高度关注) -->
-  <section id="csCard" class="card p-4 mb-5 hidden" style="border-color:rgba(250,204,21,.45)">
-    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
-      <h4 class="sec-title" data-i18n="cs_title">💎 错杀候选 — 高质量·情绪性下跌·高度关注</h4>
-      <span id="csMeta" class="text-xs text-slate-400"></span>
-    </div>
-    <div class="overflow-x-auto"><table class="w-full text-[13px]" id="csTbl"></table></div>
-    <div id="csNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
+      <div id="btNote" class="text-xs text-slate-500 mt-2 leading-relaxed"></div>
+    </details>
   </section>
 
   <!-- 👑 优质公司推荐 -->
@@ -245,7 +244,7 @@
         <button class="segbtn" id="segTree" data-i18n="seg_tree">矩形树图</button>
       </div>
     </div>
-    <div id="industryChart" style="width:100%;height:380px;"></div>
+    <div id="industryChart" style="width:100%;height:220px;"></div>
   </section>
 
   <!-- 权重实验室 -->
@@ -499,20 +498,21 @@
       // 信号回测
       bt_title:"📊 信号回测 — 过去发出的建议，真实走成了什么样？",
       bt_days:" 天快照", bt_hz:"持有窗口 ", bt_hz2:" 交易日",
-      bt_n:"完整窗口已了结", bt_n_open:"持仓/窗口未满", bt_fill:"触发率",
-      bt_win:"先赚10%胜率", bt_win_sub:"止损前先到 +10%",
+      bt_n:"已验证信号", bt_n_open:"窗口未满", bt_fill:"触发率",
+      bt_win:"达标率", bt_win_sub:"20日内先涨到+10%",
       bt_ret:"平均净收益", bt_ret_sub:"每笔·含成本",
       bt_days_med:"中位持有", bt_days_sub:"交易日",
       bt_seg_title:"按标签（已了结信号）", bt_dim_title:"按市场温度 / 成长质量（胜率）",
-      bt_col_tag:"标签", bt_col_n:"已了结", bt_col_win:"胜率+10%", bt_col_r5:"曾达+5%",
+      bt_col_tag:"标签", bt_col_n:"已验证", bt_col_win:"达标率", bt_col_r5:"曾达+5%",
       bt_col_ret:"平均收益", bt_col_d:"天数", bt_low_n:"样本少",
       bt_opp_hot:"🔥 高温日", bt_opp_mid:"➖ 常温日", bt_opp_cold:"🧊 低温日",
       bt_g_G:"🟢 持续/拐点", bt_g_M:"🟡 增速回落", bt_g_W:"🔴 下滑/脉冲",
-      bt_reco_title:"📈 回测优选 — 今日候选中，历史同类信号战绩达标的",
+      bt_reco_title:"📈 回测优选 — 今日候选中，其信号类型过去达标率最高的",
       bt_reco_tip:"同类历史信号收缩后胜率", bt_reco_none:"今日暂无达标段位（样本随每日运行自动积累）",
       bt_recent:"最近了结", bt_open_pos:"进行中",
       bt_cs:"💎 错杀≥60", bt_cselig:"过门槛<60", bt_noncs:"其它",
-      bt_reco_seg:"信号类型", bt_reco_hist:"历史胜率", bt_reco_vs:"全池",
+      bt_how:"怎么读：系统每天给出的买卖点，事后用真实行情检验。「达标」= 按建议买入后 20 个交易日内先涨到 +10%（而不是先碰止损）；「达标率」= 同类信号过去达标的比例；「平均净收益」= 含成本的每笔平均结果。", bt_details:"详情：按标签 · 按市场温度/成长质量 · 最近了结 · 方法说明",
+      bt_reco_seg:"信号类型", bt_reco_hist:"过去达标率", bt_reco_vs:"全部信号",
       bt_reco_tip2:"该股属于此信号类型；胜率是类型的历史频率，不是个股预测。点击查看买卖点计划",
       // 错杀候选
       cs_title:"💎 错杀候选 — 高质量·情绪性下跌·高度关注",
@@ -522,7 +522,7 @@
       sent_s0:"0 极度避险", sent_s40:"40", sent_s60:"60", sent_s80:"80 极度贪婪",
       sent_pct3y:"3年分位", sent_from_high:"距52周高点", sent_w:"权重",
       sent_pl_fear:"恐慌", sent_pl_credit:"信用", sent_pl_breadth:"广度", sent_pl_leader:"领涨", sent_pl_safety:"避险",
-      sent_two_title:"近两周逐日", sent_sec_title:"板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）",
+      sent_details:"详情：近两周逐日 · 板块全表 · 历史验证（1990年起）", sent_two_title:"近两周逐日", sent_sec_title:"板块兴趣（10日收益 · 相对标普 · 相对成交量 · 我们榜单里的候选数）",
       sent_val_title:"历史验证（1990年起，每5个交易日抽样；n=重叠样本数，括号=独立事件数；3M 给出事件级 bootstrap 95% 区间）：各恐慌阶段之后标普的实际表现 — 中位数 · 正收益占比 · 最差10%分位",
       sent_c_date:"日期", sent_c_score:"指数", sent_c_b50:"站上50日线", sent_c_phase:"阶段", sent_c_sector:"板块", sent_c_rel:"相对标普", sent_c_rvol:"相对量", sent_c_board:"榜单候选",
       sent_p_acute:"🔥 新鲜恐慌", sent_p_prolonged:"🧊 持续恐慌", sent_p_easing:"🌅 恐慌缓解", sent_p_elevated:"⚠️ 温和恐慌", sent_p_complacent:"😴 过度乐观", sent_p_calm:"🟢 平静", sent_p_base:"全部日子（基准）",
@@ -556,13 +556,13 @@
       ql_col_stock:"股票", ql_col_ind:"行业", ql_col_score:"评分", ql_col_gates:"硬性门槛",
       ql_col_q4:"近四季EPS同比", ql_col_y4:"年度净利同比", ql_col_dom:"行业地位", ql_col_rd:"研发%",
       ql_g_q4:"四季连增", ql_g_y4:"年度连增", ql_g_beat:"超预期×4", ql_g_roe:"ROE≥15",
-      ql_g_pe:"PE<31", ql_g_dom:"龙头≤3", ql_accel:"最近单季同比 ≥ TTM同比: 增长仍在加速",
+      ql_g_pe:"PE<31", ql_g_dom:"龙头≤3", ql_g_cap:"蓝筹", ql_g_up:"空间≥20%", ql_col_up2:"盈利空间", ql_accel:"最近单季同比 ≥ TTM同比: 增长仍在加速",
       ql_rd_na:"豁免",
       ql_note:"客观条件筛选（非投资建议），覆盖面 = 数据库已积累基本面的股票（每日随扫描扩大）：硬性门槛 = 近四个单季EPS与营收同比全部为正 · 年度营收+净利连增（年报深度约4年）· 最近4次财报实际EPS全部≥一致预期 · ROE≥15% · PE-TTM<31 · 行业营收前3。评分另计研发强度、增长加速、更低估值。👑=门槛全过；不足10只全过时，其余按「差在哪一条」列出，✗ 标出未达标项。财报与估值有滞后，买前请人工研究。",
       cs_meta_a:"共 ", cs_meta_b:" 只达标（错杀分≥60）· 显示前20",
       cs_col_stock:"股票", cs_col_ind:"行业", cs_col_score:"错杀分",
       cs_col_dd:"距52周高点", cs_col_expl:"板块解释", cs_col_g:"近两季EPS增速",
-      cs_col_up:"修复空间", cs_col_tag:"标签",
+      cs_col_up:"修复空间", cs_col_tag:"标签", col_cs:"错杀分", col_csup:"修复空间%", col_csp20:"30日涨20%概率",
       cs_note:"错杀分 = 背离度40（跌得深 × 单季EPS仍在增长）+ 板块归因25（跌幅可由行业中位跌幅解释的比例，越高越像情绪/资金面驱动）+ 质量护城河25（成长档位/ROE/行业营收排名/自身PE历史分位低位）+ 企稳迹象10（贴支撑/RSI/多次踩不破）。修复空间只回补「超出板块的那部分跌幅」，不预测板块本身修复。⚠️ 财报有滞后：下跌可能反映尚未公布的恶化，此处结论是「无可见基本面恶化」而非「确认错杀」，重仓前请人工核查公告与下跌原因。回测卡中的「💎错杀」分段会用真实胜率持续验证这套打分。",
       bt_note:"回测 = 把历史每日快照里当天发出的买卖点建议（回踩买入区/突破买点、止损、目标），与其后真实行情逐日对照：观察窗内先到 +10% 记为胜，先破止损记为负，同日双触发按先止损保守计，含交易成本。胜率只统计观察窗完整走完的信号——已了结但窗口未满的一并剔除，否则「快出结果的交易」会被优先计入、胜率被截尾偏差推高。同一股票同一时间只计一次信号。样本仅覆盖近几周单一市场环境、信号按日聚集彼此相关，有效样本小于名义数量；胜率是历史频率而非未来保证，「回测优选」只是把今天候选对到历史战绩达标的信号类型上，仍需人工复核。",
       // 建议仓位 (¼凯利)
@@ -709,20 +709,21 @@
       // Signal backtest
       bt_title:"📊 Signal Backtest — how did past calls actually play out?",
       bt_days:"-day snapshots", bt_hz:"holding window ", bt_hz2:" trading days",
-      bt_n:"Resolved (full window)", bt_n_open:"open/window not full", bt_fill:"Fill rate",
-      bt_win:"+10% win rate", bt_win_sub:"hit +10% before stop",
+      bt_n:"Verified signals", bt_n_open:"window not full", bt_fill:"Fill rate",
+      bt_win:"Hit rate", bt_win_sub:"+10% within 20 days, before the stop",
       bt_ret:"Avg net return", bt_ret_sub:"per trade, incl. costs",
       bt_days_med:"Median hold", bt_days_sub:"trading days",
       bt_seg_title:"By tag (resolved signals)", bt_dim_title:"By market temp / growth quality (win rate)",
-      bt_col_tag:"Tag", bt_col_n:"Resolved", bt_col_win:"Win +10%", bt_col_r5:"Reached +5%",
+      bt_col_tag:"Tag", bt_col_n:"Verified", bt_col_win:"Hit rate", bt_col_r5:"Reached +5%",
       bt_col_ret:"Avg return", bt_col_d:"Days", bt_low_n:"low n",
       bt_opp_hot:"🔥 Hot days", bt_opp_mid:"➖ Mid days", bt_opp_cold:"🧊 Cold days",
       bt_g_G:"🟢 Sustained/inflect", bt_g_M:"🟡 Decelerating", bt_g_W:"🔴 Declining/one-off",
-      bt_reco_title:"📈 Backtest picks — today's candidates whose signal type has a proven record",
+      bt_reco_title:"📈 Backtest picks — today's candidates whose signal type has the best past hit rate",
       bt_reco_tip:"Shrunk win rate of similar past signals", bt_reco_none:"No segment qualifies yet (sample grows with each daily run)",
       bt_recent:"Recently resolved", bt_open_pos:"open",
       bt_cs:"💎 Mispriced ≥60", bt_cselig:"Gate-passed <60", bt_noncs:"Others",
-      bt_reco_seg:"Signal type", bt_reco_hist:"historical win rate", bt_reco_vs:"pool",
+      bt_how:"How to read: every day's published entry/stop/target is checked against what prices did next. 'Hit' = after buying per the plan, the stock reached +10% within 20 trading days before touching the stop; 'hit rate' = share of past signals of that type that hit; 'avg net return' = average per-trade result after costs.", bt_details:"Details: by tag · by market temp / growth quality · recently resolved · method",
+      bt_reco_seg:"Signal type", bt_reco_hist:"past hit rate", bt_reco_vs:"all signals",
       bt_reco_tip2:"This stock belongs to the signal type above; the win rate is the type's historical frequency, not a per-stock forecast. Click for the trade plan",
       // Mispriced candidates
       cs_title:"💎 Mispriced — quality names in emotional selloffs · high attention",
@@ -732,7 +733,7 @@
       sent_s0:"0 extreme fear", sent_s40:"40", sent_s60:"60", sent_s80:"80 extreme greed",
       sent_pct3y:"3y pctile", sent_from_high:"from 52w high", sent_w:"weight",
       sent_pl_fear:"Fear", sent_pl_credit:"Credit", sent_pl_breadth:"Breadth", sent_pl_leader:"Leadership", sent_pl_safety:"Safety",
-      sent_two_title:"Last two weeks", sent_sec_title:"Sector interest (10d return · vs S&P · relative volume · names on our board)",
+      sent_details:"Details: daily two-week series · full sector table · validation since 1990", sent_two_title:"Last two weeks", sent_sec_title:"Sector interest (10d return · vs S&P · relative volume · names on our board)",
       sent_val_title:"Historical validation (since 1990, sampled every 5 days; n = overlapping samples, (episodes) = independent episodes; 3M shows an episode-level bootstrap 95% CI): S&P after each phase — median · % positive · worst decile",
       sent_c_date:"Date", sent_c_score:"Index", sent_c_b50:"Above 50d", sent_c_phase:"Phase", sent_c_sector:"Sector", sent_c_rel:"vs S&P", sent_c_rvol:"Rel vol", sent_c_board:"Board",
       sent_p_acute:"🔥 Fresh panic", sent_p_prolonged:"🧊 Prolonged panic", sent_p_easing:"🌅 Panic easing", sent_p_elevated:"⚠️ Mild fear", sent_p_complacent:"😴 Complacent", sent_p_calm:"🟢 Calm", sent_p_base:"All days (base)",
@@ -766,13 +767,13 @@
       ql_col_stock:"Stock", ql_col_ind:"Industry", ql_col_score:"Score", ql_col_gates:"Hard gates",
       ql_col_q4:"4Q EPS YoY", ql_col_y4:"Annual profit YoY", ql_col_dom:"Position", ql_col_rd:"R&D%",
       ql_g_q4:"4Q up", ql_g_y4:"Years up", ql_g_beat:"Beat ×4", ql_g_roe:"ROE≥15",
-      ql_g_pe:"PE<31", ql_g_dom:"Top-3", ql_accel:"Latest quarter YoY ≥ TTM YoY: still accelerating",
+      ql_g_pe:"PE<31", ql_g_dom:"Top-3", ql_g_cap:"Blue chip", ql_g_up:"Upside≥20%", ql_col_up2:"Upside", ql_accel:"Latest quarter YoY ≥ TTM YoY: still accelerating",
       ql_rd_na:"exempt",
-      ql_note:"An objective screen, not investment advice. Coverage = stocks whose fundamentals the database has accumulated (grows with every daily scan). Hard gates: last four quarters EPS AND revenue YoY all positive · annual revenue+profit rising (≈4-year filing depth) · actual EPS ≥ consensus in each of the last 4 reports · ROE ≥15% · PE-TTM <31 · top-3 revenue in industry. Score adds R&D intensity, acceleration, cheaper valuation. 👑 = all gates passed; when fewer than 10 pass everything, the rest are listed with the failed gate marked ✗. Filings and valuations lag — research before buying.",
+      ql_note:"An objective screen, not investment advice. Coverage = stocks whose fundamentals the database has accumulated (grows with every daily scan). Hard gates: last four quarters EPS AND revenue YoY all positive · annual revenue+profit rising (≈4-year filing depth) · actual EPS ≥ consensus in each of the last 4 reports · ROE ≥15% · PE-TTM <31 · top-3 revenue in industry · blue-chip cap >= $10B · analyst-target upside >= 20%. Score adds R&D intensity, acceleration, cheaper valuation, upside. 👑 = all gates passed; when fewer than 10 pass everything, the rest are listed with the failed gate marked ✗. Filings and valuations lag — research before buying.",
       cs_meta_a:"", cs_meta_b:" qualified (score ≥60) · top 20 shown",
       cs_col_stock:"Stock", cs_col_ind:"Industry", cs_col_score:"Score",
       cs_col_dd:"From 52w high", cs_col_expl:"Sector-explained", cs_col_g:"Recent-2Q EPS growth",
-      cs_col_up:"Repair upside", cs_col_tag:"Tag",
+      cs_col_up:"Repair upside", cs_col_tag:"Tag", col_cs:"Mispricing", col_csup:"Repair upside", col_csp20:"P(+20%/30d)",
       cs_note:"Score = divergence 40 (deep drop × still-growing quarterly EPS) + sector attribution 25 (share of the drop explained by the industry median — higher looks emotional/flow-driven) + moat 25 (growth tier / ROE / industry revenue rank / low own-history PE percentile) + stabilization 10 (near support / RSI / repeated holds). Repair upside only refills the drop in excess of the sector, without betting on the sector itself recovering. ⚠️ Financials lag: a selloff can reflect deterioration not yet reported — this reads 'no visible deterioration', not 'confirmed mispricing'; check filings/news before sizing up. The backtest card's 💎 segment keeps validating this score with realized win rates.",
       bt_note:"Backtest = replay each day's published entry/stop/target advice against actual subsequent prices: reaching +10% before the stop within the window counts as a win, hitting the stop first counts as a loss, same-day double-trigger conservatively counts as a stop, costs included. Win rates only count signals whose full observation window has elapsed — early-resolved trades inside unfinished windows are excluded too, otherwise fast resolvers would be over-counted (censoring bias). One episode per stock at a time. The sample covers a few recent weeks in one regime and signals cluster by day, so effective sample sizes are smaller than nominal; win rates are historical frequencies, not guarantees. 'Backtest picks' map today's candidates onto signal types with a qualifying record — still review manually.",
       plan_pos:"Position size", plan_pos_u:"of capital", plan_kelly_l:"¼-Kelly",
@@ -895,7 +896,8 @@
     final_score:"col_final",tech_score:"col_tech",fund_score:"col_fund",price:"col_price",spark:"col_spark",
     dist_support_pct:"col_dist",support_disp:"col_support",breakdown_price:"col_break",pos_52w_pct:"col_pos52",
     ret_1m_pct:"col_ret1m",ret_half_year_pct:"col_rethy",avg_amt20_yi:"col_amt",dividend_yield:"col_div",
-    kdj_tag:"col_kdj",pe_disp:"col_pe",pb:"col_pb",eps:"col_eps",roe:"col_roe",upside_pct:"col_upside" };
+    kdj_tag:"col_kdj",pe_disp:"col_pe",pb:"col_pb",eps:"col_eps",roe:"col_roe",upside_pct:"col_upside",
+    cuosha_score:"col_cs",cuosha_upside:"col_csup",cuosha_p20:"col_csp20" };
   function colLabel(c){ const k=COL_I18N[c.key]; return (k? t(k) : c.label); }
   function applyStaticI18n(){
     document.documentElement.lang = (LANG==="en")?"en":"zh-CN";
@@ -1081,6 +1083,22 @@
     $("#sentVal").innerHTML=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">${t("sent_c_phase")}</th><th class="text-right">n</th><th class="text-right">1M</th><th class="text-right">3M</th><th class="text-right">6M</th></tr>`+
       rows.map(r=>`<tr class="border-t border-slate-700/40 ${r.group===S.phase?"bg-sky-500/10":""}"><td class="py-0.5">${t((PH[r.group]||["sent_p_"+r.group])[0])}${r.group===S.phase?" ◀":""}</td><td class="text-right text-slate-400">${r.n}${isNum(r.n_ep)?` <span class="text-slate-500">(${r.n_ep})</span>`:""}</td>${cell(r.r21)}${cell(r.r63)}${cell(r.r126)}</tr>`).join("");
     $("#sentNote").textContent=t("sent_note");
+    // 关键信息: 一句话情绪判断 + 板块偏好
+    try{
+      const en=(LANG==="en"); const first=tw[0]||{}, last=tw[tw.length-1]||{};
+      const lvl=v=> v>=75?(en?"overheated":"过热"):(v>=60?(en?"risk-on":"偏 risk-on"):(v>=40?(en?"neutral":"中性"):(v>=25?(en?"risk-off":"偏 risk-off"):(en?"panic":"恐慌"))));
+      const d=(isNum(first.score)&&isNum(last.score))? last.score-first.score : null;
+      const trend = !isNum(d)? "" : (d<=-8? (en?"cooling":"降温") : (d>=8? (en?"heating up":"升温") : (en?"steady":"持平")));
+      const b0=isNum(first.pct50)&&isNum((tw.filter(x=>isNum(x.pct50)).slice(-1)[0]||{}).pct50)? `${first.pct50.toFixed(0)}%→${(tw.filter(x=>isNum(x.pct50)).slice(-1)[0]).pct50.toFixed(0)}%` : null;
+      const phs=t((PH[S.phase]||["sent_p_calm"])[0]);
+      const sec=(S.sectors||[]); const top=sec.slice(0,3).map(x=>x.name), bot=sec.slice(-3).map(x=>x.name).reverse();
+      const quiet=sec.length&&Math.max(...sec.map(x=>isNum(x.rvol)?x.rvol:0))<1.05;
+      $("#sentVerdict").innerHTML = en
+        ? `<b>Two-week read:</b> index ${isNum(first.score)?first.score.toFixed(0):dash} → <b>${sc.toFixed(0)}</b> (${lvl(sc)}${trend?", "+trend:""}); phase ${phs}; VIX ${V.now} at the ${isNum(V.pct3y)?V.pct3y.toFixed(0):dash}th 3-year percentile${b0?`; breadth (stocks above 50d) ${b0}`:""}. ${quiet?"Volumes are quiet across sectors — rotation, not liquidation.":"Volume is elevated in some sectors."}`
+        : `<b>近两周：</b>情绪指数 ${isNum(first.score)?first.score.toFixed(0):dash} → <b>${sc.toFixed(0)}</b>（${lvl(sc)}${trend?"、"+trend:""}）；阶段 ${phs}；VIX ${V.now}（3年${isNum(V.pct3y)?V.pct3y.toFixed(0):dash}%分位）${b0?`；市场广度（站上50日线）${b0}`:""}。${quiet?"各板块成交清淡——是轮动，不是出逃。":"部分板块放量。"}`;
+      const chip=(x,cls)=>`<span class="badge ${cls}" title="10d ${isNum(x.r10)?x.r10.toFixed(1):dash}% · ${t("sent_c_rel")} ${isNum(x.rel10)?x.rel10.toFixed(1):dash}% · ${t("sent_c_rvol")} ${isNum(x.rvol)?x.rvol.toFixed(2):dash}×">${escH(x.name)} ${isNum(x.rel10)?(x.rel10>0?"+":"")+x.rel10.toFixed(1)+"%":dash}</span>`;
+      $("#sentStrip").innerHTML = `<span class="text-slate-400">${en?"Money favours":"资金偏好"}</span> `+sec.slice(0,3).map(x=>chip(x,"tag-strong")).join(" ")+` <span class="text-slate-400 ml-2">${en?"avoids":"回避"}</span> `+sec.slice(-3).reverse().map(x=>chip(x,"tag-warn")).join(" ");
+    }catch(e){}
   }
   window.renderSentiment=renderSentiment;
   // ---------- 共用看板功能见 leftside_shared.js (LS.init 在主脚本末尾) ----------
@@ -1123,13 +1141,13 @@
           itemStyle:{borderColor:(document.body.classList.contains("light")?"#eef2f8":"#0b1220"),borderWidth:2,gapWidth:2}, data }]
       });
     } else {
-      const arr = inds.slice(0,15).slice().reverse();
+      const arr = inds.slice(0,12).slice().reverse();
       const names = arr.map(d=>d.industry);
       const scores = arr.map(d=> isNum(d.prosperity_score)? +d.prosperity_score.toFixed(1) : 0);
       const colors = arr.map(d=> d.selected? "#16a34a" : C.base);
       indChart.setOption({
         backgroundColor:"transparent",
-        grid:{left:100,right:44,top:10,bottom:20},
+        grid:{left:96,right:40,top:6,bottom:16},
         tooltip:{trigger:"axis", axisPointer:{type:"shadow"},
           formatter:(p)=>{ const i=arr[p[0].dataIndex];
             const row=(lab,v)=>`${lab}：<b>${isNum(v)?v.toFixed(0):"—"}</b>`;
@@ -1163,7 +1181,7 @@
   const NUMERIC = new Set(["final_score","tech_score","fund_score","tech_norm","prosperity_score","price","dist_support_pct",
     "breakdown_price","pos_52w_pct","ret_1m_pct","ret_half_year_pct","avg_amt20_yi","dividend_yield","pb","eps","roe",
     "streak","upside_pct","target_price","analyst_count","atr_pct","max_dd_pct","beta","boll_low","volume_ratio","turnover",
-    "ni_ttm_yoy","rev_ttm_yoy","dom_share","dominance_disp"]);
+    "ni_ttm_yoy","rev_ttm_yoy","dom_share","dominance_disp","cuosha_score","cuosha_upside","cuosha_p20"]);
   try{ const saved=JSON.parse(localStorage.getItem(COLORDER_KEY)||"null");
     if(Array.isArray(saved)&&saved.length){ COLS.sort((a,b)=>{ let ia=saved.indexOf(a.key), ib=saved.indexOf(b.key); return (ia<0?999:ia)-(ib<0?999:ib); }); } }catch(e){}
 
@@ -1299,6 +1317,9 @@
         return signPctCell(v)+basis;
       }
       case "growth_quality": return growthQualityCell(v);
+      case "cuosha_score": return isNum(v)? `<span class="font-bold text-amber-300 cursor-help" title="${escH(c.cuosha_note||"")}">💎 ${v}</span>` : dash;
+      case "cuosha_upside": return isNum(v)? (v>0? `<span class="text-emerald-300 font-semibold">+${v}%</span>` : `<span class="text-slate-500">0%</span>`) : dash;
+      case "cuosha_p20": return isNum(v)? `<span class="${v>=50?"text-emerald-300":(v>=30?"text-amber-300":"text-slate-300")}" title="n=${c.cuosha_p20_n||dash}">${v.toFixed(0)}%</span>` : dash;
       case "dominance_disp": {
         if(v==null||v==="") return `<span>${dash}</span>`;
         const gold = String(v).indexOf("👑")>=0;

@@ -115,7 +115,7 @@ LS.init = function(ctx){
   }
   // ---------- 👑 优质公司推荐 ----------
   function qlLink(code){ return market.qlLink(code); }
-  const qlGet=(p,k)=>({score:p.score, pe:p.pe, roe:p.roe, q4:(p.ni_q4||[]).slice(-1)[0], y4:(p.ni_y4||[]).slice(-1)[0], dom:(isNum(p.dom_rank)? -p.dom_rank : null), rd:p.rd, p20:p.p20, n_pass:Object.values(p.gates||{}).filter(Boolean).length, name:p.code, ind:p.industry})[k];
+  const qlGet=(p,k)=>({score:p.score, up:p.upside, mcap:p.mcap_b, pe:p.pe, roe:p.roe, q4:(p.ni_q4||[]).slice(-1)[0], y4:(p.ni_y4||[]).slice(-1)[0], dom:(isNum(p.dom_rank)? -p.dom_rank : null), rd:p.rd, p20:p.p20, n_pass:Object.values(p.gates||{}).filter(Boolean).length, name:p.code, ind:p.industry})[k];
   function renderQuality(){
     const card=$("#qlCard"); if(!card) return;
     const Q=window.__QL__;
@@ -123,9 +123,9 @@ LS.init = function(ctx){
     card.classList.remove("hidden");
     const M=Q.meta||{};
     $("#qlMeta").textContent = `${t("ql_meta_a")}${M.n_screened??dash}${t("ql_meta_b")}${M.n_pool??dash}${t("ql_meta_c")}${M.n_crown??0}${t("ql_meta_d")} · ${M.date||""}`;
-    const GK=["q4","y4","beat","roe","pe","dom"].filter(k=> Q.picks.some(p=>p.gates&&(k in p.gates)));
+    const GK=["q4","y4","beat","roe","pe","dom","cap","up"].filter(k=> Q.picks.some(p=>p.gates&&(k in p.gates)));
     const picks = sortRows(Q.picks, SORTS.ql, qlGet);
-    const th=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">#</th>${sortTh("ql","name",t("ql_col_stock"))}${sortTh("ql","ind",t("ql_col_ind"))}${sortTh("ql","score",t("ql_col_score"),"text-right")}${sortTh("ql","n_pass",t("ql_col_gates"),"text-left pl-3")}${sortTh("ql","pe","PE","text-right")}${sortTh("ql","roe","ROE%","text-right")}${sortTh("ql","q4",t("ql_col_q4"),"text-right")}${sortTh("ql","y4",t("ql_col_y4"),"text-right")}${sortTh("ql","dom",t("ql_col_dom"),"text-left pl-2")}${sortTh("ql","rd",t("ql_col_rd"),"text-right")}${sortTh("ql","p20",t("ql_col_p20"),"text-right")}</tr>`;
+    const th=`<tr class="text-slate-400 text-[11px]"><th class="text-left py-1">#</th>${sortTh("ql","name",t("ql_col_stock"))}${sortTh("ql","ind",t("ql_col_ind"))}${sortTh("ql","score",t("ql_col_score"),"text-right")}${sortTh("ql","n_pass",t("ql_col_gates"),"text-left pl-3")}${sortTh("ql","up",t("ql_col_up2"),"text-right")}${sortTh("ql","pe","PE","text-right")}${sortTh("ql","roe","ROE%","text-right")}${sortTh("ql","q4",t("ql_col_q4"),"text-right")}${sortTh("ql","y4",t("ql_col_y4"),"text-right")}${sortTh("ql","dom",t("ql_col_dom"),"text-left pl-2")}${sortTh("ql","rd",t("ql_col_rd"),"text-right")}${sortTh("ql","p20",t("ql_col_p20"),"text-right")}</tr>`;
     $("#qlTbl").innerHTML = th + picks.map((p,i)=>{
       const crown = GK.every(k=>p.gates&&p.gates[k]) ? "👑 " : "";
       const gates = GK.map(k=>{ const ok=p.gates&&p.gates[k]; return `<span class="badge ${ok?"tag-strong":"tag-watch"} !text-[10px] !px-1.5 ${ok?"":"opacity-50"}" title="${t("ql_g_"+k)}">${ok?"✓":"✗"}${t("ql_g_"+k)}</span>`; }).join(" ");
@@ -138,6 +138,7 @@ LS.init = function(ctx){
         `<td class="text-slate-400 text-xs">${escH(p.industry||dash)}</td>`+
         `<td class="text-right font-bold text-emerald-300">${p.score??dash}</td>`+
         `<td class="pl-3">${gates}</td>`+
+        `<td class="text-right ${isNum(p.upside)&&p.upside>=20?"text-emerald-300 font-semibold":"text-slate-400"}">${isNum(p.upside)?(p.upside>0?"+":"")+p.upside.toFixed(0)+"%":dash}</td>`+
         `<td class="text-right ${isNum(p.pe)&&p.pe<31?"text-emerald-300":"text-slate-400"}">${isNum(p.pe)?p.pe:dash}</td>`+
         `<td class="text-right ${isNum(p.roe)&&p.roe>=15?"text-emerald-300":"text-slate-400"}">${isNum(p.roe)?p.roe:dash}</td>`+
         `<td class="text-right text-xs">${q4||dash}</td>`+
