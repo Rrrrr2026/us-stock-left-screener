@@ -90,6 +90,78 @@ def news_titles(code: str) -> list:
         return []
 
 
+def _skip_us_today() -> str | None:
+    """美股收盘(≈UTC 20:00/21:00)前丢当日未走完bar; 统一按 UTC 21:10 保守判断。"""
+    import datetime as dt
+    now = dt.datetime.now(dt.timezone.utc)
+    if now.hour < 21 or (now.hour == 21 and now.minute < 10):
+        return now.date().isoformat()
+    return None
+
+
+def fetch_bars_bulk(codes: list, start: str) -> dict:
+    """长历史日线(含成交量), yfinance 批量下载 -> {code: [(d,o,h,l,c,v), ...]}。"""
+    import time
+    res = {}
+    skip_day = _skip_us_today()
+    try:
+        import pandas as pd
+        import yfinance as yf
+        for i in range(0, len(codes), 50):
+            batch = codes[i:i + 50]
+            df = None
+            for attempt in (1, 2):
+                try:
+                    df = yf.download(batch, start=start, auto_adjust=True,
+                                     progress=False, group_by="ticker", threads=True)
+                    break
+                except Exception as e:
+                    log.warning("yf 长历史批 %d 第%d次失败: %s", i // 50, attempt, e)
+                    time.sleep(5 * attempt)
+            if df is None or len(df) == 0:
+                continue
+            for c in batch:
+                try:
+                    sub = df[c] if isinstance(df.columns, pd.MultiIndex) else df
+                    sub = sub.dropna(subset=["Open", "High", "Low", "Close"])
+                    if len(sub) < 60:
+                        continue
+                    rows = []
+                    for d, r in sub.iterrows():
+                        d1 = d.strftime("%Y-%m-%d")
+                        if skip_day and d1 >= skip_day:
+                            continue
+                        o, h, l, cl = (float(r["Open"]), float(r["High"]),
+                                       float(r["Low"]), float(r["Close"]))
+                        v = float(r.get("Volume") or 0)
+                        if h < l or min(o, h, l, cl) <= 0:
+                            continue
+                        rows.append((d1, o, h, l, cl, v))
+                    if len(rows) >= 60:
+                        res[c] = rows
+                except Exception:
+                    continue
+            log.info("长历史进度 %d/%d (拿到 %d)", min(i + 50, len(codes)), len(codes), len(res))
+            time.sleep(1.0)
+    except Exception as e:
+        log.warning("yfinance 不可用: %s", e)
+    return res
+
+
+def fetch_index_bars(start: str) -> list:
+    """SPY 长历史日线 -> [(d,o,h,l,c,v), ...]。"""
+    r = fetch_bars_bulk(["SPY"], start)
+    return r.get("SPY") or []
+
+
+def universe_codes() -> list:
+    from . import datasource as ds
+    uni = ds.get_universe()
+    if uni is None or uni.empty:
+        return []
+    return sorted({str(c) for c in uni["code"] if c})
+
+
 MARKET = set_market(Market(
     name="us",
     dashboard_dir=DASHBOARD_DIR, data_dir=DATA_DIR, db_path=DB_PATH,
@@ -98,5 +170,7 @@ MARKET = set_market(Market(
     fetch_price_series=fetch_price_series, fetch_benchmark=fetch_benchmark,
     limit_up_oneline=None, limit_down_oneline=None,
     news_titles=news_titles, news_keywords=NEWS_KEYWORDS,
+    fetch_bars_bulk=fetch_bars_bulk, fetch_index_bars=fetch_index_bars,
+    universe_codes=universe_codes,
     log_prefix="screener",
 ))
