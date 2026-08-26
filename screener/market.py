@@ -60,6 +60,13 @@ def fetch_price_series(codes: list, start: str) -> dict:
             log.info("价格进度 %d/%d (拿到 %d)", min(i + 100, len(codes)), len(codes), len(res))
     except Exception as e:
         log.warning("yfinance 不可用: %s", e)
+    # Tiingo 兜底 yfinance 漏掉的 (限量, 免费档有独立代码配额)
+    missing = [c for c in codes if c not in res]
+    if missing and len(missing) <= 250:
+        import numpy as np
+        for c, rows in fetch_bars_bulk_tiingo(missing, start).items():
+            res[c] = {"dates": [r[0] for r in rows],
+                      "ohlc": np.array([r[1:5] for r in rows], dtype=float)}
     return res
 
 
@@ -148,9 +155,67 @@ def fetch_bars_bulk(codes: list, start: str) -> dict:
     return res
 
 
+def _tiingo_token() -> str | None:
+    import json
+    import os
+    tok = os.environ.get("TIINGO_TOKEN")
+    if tok:
+        return tok
+    try:
+        from .config import DATA_DIR
+        return json.load(open(os.path.join(DATA_DIR, "secrets.json")))["tiingo_token"]
+    except Exception:
+        return None
+
+
+def fetch_bars_bulk_tiingo(codes: list, start: str) -> dict:
+    """Tiingo 备源 (yfinance 限流时用): 复权OHLCV, 一只票一请求。
+    免费档有请求/独立代码配额 —— 只作兜底, 不做全池日常抓取。"""
+    from concurrent.futures import ThreadPoolExecutor
+    import requests
+    tok = _tiingo_token()
+    if not tok:
+        return {}
+    skip_day = _skip_us_today()
+
+    def one(code):
+        try:
+            r = requests.get(f"https://api.tiingo.com/tiingo/daily/{code}/prices",
+                             params={"startDate": start, "token": tok},
+                             headers={"Content-Type": "application/json"}, timeout=30)
+            if r.status_code != 200:
+                return code, None
+            rows = []
+            for b in r.json():
+                d1 = str(b.get("date") or "")[:10]
+                if not d1 or (skip_day and d1 >= skip_day):
+                    continue
+                o, h, l, c = (b.get("adjOpen"), b.get("adjHigh"),
+                              b.get("adjLow"), b.get("adjClose"))
+                v = b.get("adjVolume") or b.get("volume") or 0
+                if not all(isinstance(x, (int, float)) and x > 0 for x in (o, h, l, c)):
+                    continue
+                rows.append((d1, float(o), float(h), float(l), float(c), float(v)))
+            rows.sort()
+            return code, (rows if len(rows) >= 5 else None)
+        except Exception:
+            return code, None
+
+    res = {}
+    with ThreadPoolExecutor(max_workers=4) as exe:
+        for code, rows in exe.map(one, codes):
+            if rows:
+                res[code] = rows
+    if res:
+        log.info("Tiingo 兜底: %d/%d 只", len(res), len(codes))
+    return res
+
+
 def fetch_index_bars(start: str) -> list:
     """SPY 长历史日线 -> [(d,o,h,l,c,v), ...]。"""
     r = fetch_bars_bulk(["SPY"], start)
+    if not r.get("SPY"):
+        r = fetch_bars_bulk_tiingo(["SPY"], start)
     return r.get("SPY") or []
 
 
