@@ -255,6 +255,10 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
             json.dump({"date": result["meta"]["date"], "picks": slim}, f, ensure_ascii=False)
     except Exception as e:
         log.warning("优质榜历史落盘失败: %s", e)
+    try:
+        result["profiles"] = _drawer_profiles(picks)
+    except Exception as e:
+        log.warning("优质榜弹窗档案失败(不影响榜单): %s", e)
     with open(QL_JS, "w", encoding="utf-8") as f:
         f.write("window.__QL__ = ")
         json.dump(result, f, ensure_ascii=False)
@@ -267,3 +271,71 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     build_quality()
+
+
+def _drawer_profiles(picks: list) -> dict:
+    """优质榜前10只生成候选股同构档案 (yfinance 批量1年行情)。"""
+    import glob
+    import pandas as pd
+    from leftside_core import indicators as ind
+    template = {}
+    days = sorted(glob.glob(os.path.join(DASHBOARD_DIR, "history", "day_*.json")))
+    if days:
+        try:
+            cands = (json.load(open(days[-1], encoding="utf-8")).get("candidates") or [])
+            if cands:
+                template = {k: None for k in cands[0]}
+        except Exception:
+            pass
+    codes = [p["code"] for p in picks if p.get("code")]
+    hists = {}
+    try:
+        import yfinance as yf
+        df = yf.download(codes, period="1y", auto_adjust=True, progress=False,
+                         group_by="ticker", threads=True)
+        for c in codes:
+            try:
+                sub = df[c] if isinstance(df.columns, pd.MultiIndex) else df
+                sub = sub.dropna(subset=["Close"])
+                if len(sub) >= 60:
+                    hists[c] = sub
+            except Exception:
+                continue
+    except Exception as e:
+        log.warning("优质档案行情失败: %s", e)
+    out = {}
+    for i, p in enumerate(picks, 1):
+        code = p.get("code")
+        sub = hists.get(code)
+        if sub is None:
+            continue
+        try:
+            close, high, low = sub["Close"], sub["High"], sub["Low"]
+            k, d, jv = ind.kdj(high, low, close)
+            k, d, jv = (float(k.iloc[-1]), float(d.iloc[-1]), float(jv.iloc[-1]))
+            price = float(close.iloc[-1])
+            h52, l52 = float(high.max()), float(low.min())
+            prof = dict(template)
+            prof.update({
+                "code": code, "name": p.get("name"), "industry": p.get("industry"),
+                "tag": "🔎 观察", "price": round(price, 2),
+                "spark": [round(float(v), 2) for v in close.iloc[-40:]],
+                "high_52w": round(h52, 2), "low_52w": round(l52, 2),
+                "pos_52w_pct": round((price - l52) / (h52 - l52) * 100, 1) if h52 > l52 else None,
+                "max_dd_pct": round(float(ind.max_drawdown(close)), 1),
+                "atr_pct": round(float(ind.atr_pct(high, low, close)), 2),
+                "kdj_k": round(k, 1), "kdj_d": round(d, 1), "kdj_j": round(jv, 1),
+                "kdj_tag": ind.kdj_tag(k, d, jv),
+                "rsi": round(float(ind.rsi(close).iloc[-1]), 1),
+                "pe_ttm": p.get("pe"), "pe_disp": (str(p.get("pe")) if p.get("pe") is not None else None),
+                "roe": p.get("roe"), "upside_pct": p.get("upside"),
+                "ni_qoq": p.get("ni_q4"), "growth_quality": None,
+                "dom_rank": p.get("dom_rank"), "dom_share": p.get("dom_share"),
+                "conclusion": f"👑 优质榜第{i}名 · 硬门槛 {p.get('n_pass')}/8 · 长线研究池标的, 非左侧信号; 完整技术/买卖点仅候选股提供。",
+                "conclusion_en": f"Quality #{i} · gates {p.get('n_pass')}/8 · research-pool name, not a left-side signal.",
+            })
+            out[code] = prof
+        except Exception as e:
+            log.debug("quality profile %s failed: %s", code, e)
+    log.info("优质榜弹窗档案: %d/%d", len(out), len(picks))
+    return out
