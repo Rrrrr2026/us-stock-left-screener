@@ -274,7 +274,7 @@ if __name__ == "__main__":
 
 
 def _drawer_profiles(picks: list) -> dict:
-    """优质榜前10只生成候选股同构档案 (yfinance 批量1年行情)。"""
+    """优质榜前10只生成候选股同构档案 (yfinance 行情+info, 尽量填满总览页字段)。"""
     import glob
     import pandas as pd
     from leftside_core import indicators as ind
@@ -288,7 +288,7 @@ def _drawer_profiles(picks: list) -> dict:
         except Exception:
             pass
     codes = [p["code"] for p in picks if p.get("code")]
-    hists = {}
+    hists, infos, roes = {}, {}, {}
     try:
         import yfinance as yf
         df = yf.download(codes, period="1y", auto_adjust=True, progress=False,
@@ -301,8 +301,42 @@ def _drawer_profiles(picks: list) -> dict:
                     hists[c] = sub
             except Exception:
                 continue
+        for c in codes:
+            try:
+                t = yf.Ticker(c)
+                infos[c] = t.info or {}
+                try:
+                    inc, bal = t.income_stmt, t.balance_sheet
+                    ni = inc.loc["Net Income"] if inc is not None and "Net Income" in inc.index else None
+                    eq = None
+                    if bal is not None:
+                        for nm in ("Stockholders Equity", "Total Equity Gross Minority Interest"):
+                            if nm in bal.index:
+                                eq = bal.loc[nm]
+                                break
+                    if ni is not None and eq is not None:
+                        pts = []
+                        for col in ni.index:
+                            n, e = ni.get(col), eq.get(col)
+                            if n == n and e and e == e and e > 0:
+                                pts.append({"date": str(col)[:10], "value": round(float(n) / float(e) * 100, 1)})
+                        pts.sort(key=lambda x: x["date"])
+                        if pts:
+                            roes[c] = pts
+                except Exception:
+                    pass
+            except Exception:
+                infos[c] = {}
     except Exception as e:
         log.warning("优质档案行情失败: %s", e)
+
+    def _n(v, scale=1.0, nd=2):
+        try:
+            v = float(v)
+            return round(v * scale, nd) if v == v else None
+        except (TypeError, ValueError):
+            return None
+
     out = {}
     for i, p in enumerate(picks, 1):
         code = p.get("code")
@@ -310,11 +344,19 @@ def _drawer_profiles(picks: list) -> dict:
         if sub is None:
             continue
         try:
-            close, high, low = sub["Close"], sub["High"], sub["Low"]
+            close, high, low, vol = sub["Close"], sub["High"], sub["Low"], sub.get("Volume")
             k, d, jv = ind.kdj(high, low, close)
             k, d, jv = (float(k.iloc[-1]), float(d.iloc[-1]), float(jv.iloc[-1]))
             price = float(close.iloc[-1])
             h52, l52 = float(high.max()), float(low.min())
+            info = infos.get(code) or {}
+            vr = sig_vol = None
+            if vol is not None and len(vol) >= 20 and float(vol.iloc[-20:].mean()) > 0:
+                vr = round(float(vol.iloc[-5:].mean()) / float(vol.iloc[-20:].mean()), 2)
+                sig_vol = "缩量" if vr < 0.7 else ("放量" if vr > 1.5 else "平量")
+            dy = _n(info.get("dividendYield"), 1.0, 4)
+            if dy is not None and dy < 0.02:         # 旧版yfinance给小数比例, 新版直接给百分数
+                dy = round(dy * 100, 2)
             prof = dict(template)
             prof.update({
                 "code": code, "name": p.get("name"), "industry": p.get("industry"),
@@ -324,14 +366,29 @@ def _drawer_profiles(picks: list) -> dict:
                 "pos_52w_pct": round((price - l52) / (h52 - l52) * 100, 1) if h52 > l52 else None,
                 "max_dd_pct": round(float(ind.max_drawdown(close)), 1),
                 "atr_pct": round(float(ind.atr_pct(high, low, close)), 2),
+                "boll_low": round(float(ind.bollinger_lower(close).iloc[-1]), 2),
+                "vol_ratio_calc": vr, "sig_vol": sig_vol,
                 "kdj_k": round(k, 1), "kdj_d": round(d, 1), "kdj_j": round(jv, 1),
                 "kdj_tag": ind.kdj_tag(k, d, jv),
                 "rsi": round(float(ind.rsi(close).iloc[-1]), 1),
                 "pe_ttm": p.get("pe"), "pe_disp": (str(p.get("pe")) if p.get("pe") is not None else None),
-                "roe": p.get("roe"), "upside_pct": p.get("upside"),
-                "ni_qoq": p.get("ni_q4"), "growth_quality": None,
+                "pb": _n(info.get("priceToBook")),
+                "eps": _n(info.get("trailingEps")),
+                "roe": p.get("roe"),
+                "revenue_yoy": _n(info.get("revenueGrowth"), 100.0, 1),
+                "netprofit_yoy": _n(info.get("earningsGrowth"), 100.0, 1),
+                "gross_margin": _n(info.get("grossMargins"), 100.0, 1),
+                "debt_ratio": _n(info.get("debtToEquity")),
+                "dividend_yield": dy,
+                "beta": _n(info.get("beta")),
+                "target_price": _n(info.get("targetMeanPrice")),
+                "analyst_rating": info.get("recommendationKey"),
+                "analyst_count": info.get("numberOfAnalystOpinions"),
+                "upside_pct": p.get("upside"),
+                "ni_qoq": p.get("ni_q4"), "roe_trend": roes.get(code),
+                "fund_score": round(float(p.get("score") or 0)),
                 "dom_rank": p.get("dom_rank"), "dom_share": p.get("dom_share"),
-                "conclusion": f"👑 优质榜第{i}名 · 硬门槛 {p.get('n_pass')}/8 · 长线研究池标的, 非左侧信号; 完整技术/买卖点仅候选股提供。",
+                "conclusion": f"👑 优质榜第{i}名 · 硬门槛 {p.get('n_pass')}/8 · 长线研究池标的, 非左侧信号; 买卖点/胜率仅候选股提供。",
                 "conclusion_en": f"Quality #{i} · gates {p.get('n_pass')}/8 · research-pool name, not a left-side signal.",
             })
             out[code] = prof
