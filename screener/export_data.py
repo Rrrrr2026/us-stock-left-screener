@@ -288,8 +288,17 @@ def write_history_snapshot(run_date: str | None = None) -> str | None:
         except OSError:
             pass
     dates = dates[:keep]
-    with open(os.path.join(HISTORY_DIR, "index.json"), "w", encoding="utf-8") as f:
-        json.dump({"dates": dates}, f)
+    idx_path = os.path.join(HISTORY_DIR, "index.json")
+    hits: dict = {}
+    try:
+        with open(idx_path, encoding="utf-8") as f:
+            hits = json.load(f).get("hits") or {}
+    except Exception:
+        hits = {}
+    hits[rd] = len(payload["candidates"])
+    hits = {d: hits[d] for d in dates if d in hits}
+    with open(idx_path, "w", encoding="utf-8") as f:
+        json.dump({"dates": dates, "hits": hits}, f)
     log.info("历史快照已写出: %s (%d 天可回看)", path, len(dates))
     return path
 
@@ -333,16 +342,19 @@ def write_watch_js() -> None:
         out = {}
         if os.path.exists(ps_path):
             conn = sqlite3.connect(ps_path)
-            for code, px in conn.execute(
-                    "SELECT b.code, b.c FROM bars b JOIN "
-                    "(SELECT code, MAX(d) md FROM bars GROUP BY code) m "
-                    "ON b.code=m.code AND b.d=m.md"):
+            last, prev = {}, {}
+            for code, px, rn in conn.execute(
+                    "SELECT code, c, rn FROM (SELECT code, c, ROW_NUMBER() OVER "
+                    "(PARTITION BY code ORDER BY d DESC) rn FROM bars) WHERE rn<=2"):
                 try:
                     px = float(px)
                 except (TypeError, ValueError):
                     continue
                 if px > 0:
-                    out[str(code)] = [names.get(str(code), ""), round(px, 2), None]
+                    (last if rn == 1 else prev)[str(code)] = px
+            for code, px in last.items():
+                chg = round((px / prev[code] - 1) * 100, 2) if prev.get(code) else None
+                out[code] = [names.get(code, ""), round(px, 2), chg]
             conn.close()
         path = os.path.join(DASHBOARD_DIR, "watch_data.js")
         with open(path, "w", encoding="utf-8") as f:
