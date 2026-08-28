@@ -336,8 +336,12 @@ def write_watch_js() -> None:
     from .config import DASHBOARD_DIR, DB_PATH
     try:
         uni = ds.get_universe()
-        names = {str(r["code"]): str(r.get("name") or "") for _, r in uni.iterrows()} \
-            if uni is not None and not uni.empty else {}
+        names, sectors = {}, {}
+        if uni is not None and not uni.empty:
+            for _, r in uni.iterrows():
+                c = str(r["code"])
+                names[c] = str(r.get("name") or "")
+                sectors[c] = str(r.get("sector") or "")
         ps_path = os.path.join(os.path.dirname(DB_PATH), "pricestore.db")
         out = {}
         if os.path.exists(ps_path):
@@ -354,7 +358,7 @@ def write_watch_js() -> None:
                     (last if rn == 1 else prev)[str(code)] = px
             for code, px in last.items():
                 chg = round((px / prev[code] - 1) * 100, 2) if prev.get(code) else None
-                out[code] = [names.get(code, ""), round(px, 2), chg]
+                out[code] = [names.get(code, ""), round(px, 2), chg, sectors.get(code, "")]
             conn.close()
         path = os.path.join(DASHBOARD_DIR, "watch_data.js")
         with open(path, "w", encoding="utf-8") as f:
