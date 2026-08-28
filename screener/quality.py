@@ -205,6 +205,7 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
             "dom_rank": dr,
             "dom_share": f.get("dom_share"),
             "mcap_b": round(mcap / 1e9, 1) if mcap else None,
+            "val_model": ("分析师目标" if upside is not None else None),
             "upside": round(upside, 1) if upside is not None else None,
             "ni_q4": [round(v, 1) for v in ni_q4[-4:]] if ni_q4 else None,
             "rev_q4": [round(v, 1) for v in rev_q4[-4:]] if rev_q4 else None,
@@ -255,6 +256,10 @@ def build_quality(top_n: int = TOP_N) -> dict | None:
             json.dump({"date": result["meta"]["date"], "picks": slim}, f, ensure_ascii=False)
     except Exception as e:
         log.warning("优质榜历史落盘失败: %s", e)
+    try:
+        result["deep_profiles"] = _deep_profiles(picks)
+    except Exception as e:
+        log.warning("优质深度档案失败(不影响榜单): %s", e)
     try:
         result["profiles"] = _drawer_profiles(picks)
     except Exception as e:
@@ -395,4 +400,46 @@ def _drawer_profiles(picks: list) -> dict:
         except Exception as e:
             log.debug("quality profile %s failed: %s", code, e)
     log.info("优质榜弹窗档案: %d/%d", len(out), len(picks))
+    return out
+
+
+def _deep_profiles(picks: list, budget_sec: int = 480) -> dict:
+    """优质榜标的深度档案 (公司简介/主营/现金流/风险/消息): 库里最近的直接复用,
+    没有或超过7天的在预算内现场补拉并入库 -> 弹窗四个页签不再空白。"""
+    import sqlite3
+    import time
+    from .config import DB_PATH
+    from . import module6_profile as m6
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    out = {}
+    t0 = time.time()
+    today = dt.date.today()
+    for p in picks:
+        code = p.get("code")
+        prof, age = None, 999
+        try:
+            row = conn.execute(
+                "SELECT run_date, profile_json FROM profile WHERE code=? "
+                "ORDER BY run_date DESC LIMIT 1", (code,)).fetchone()
+            if row and row["profile_json"]:
+                prof = json.loads(row["profile_json"])
+                age = (today - dt.date.fromisoformat(str(row["run_date"])[:10])).days
+        except Exception:
+            prof = None
+        if (prof is None or age > 7) and time.time() - t0 < budget_sec:
+            try:
+                fresh = m6.pull_profile(code, sector=p.get("industry"))
+                if fresh and (fresh.get("summary") or fresh.get("revenue") or fresh.get("cashflow")):
+                    prof = fresh
+                    conn.execute("INSERT OR REPLACE INTO profile(run_date,code,profile_json) "
+                                 "VALUES(?,?,?)",
+                                 (today.isoformat(), code, json.dumps(fresh, ensure_ascii=False)))
+                    conn.commit()
+            except Exception as e:
+                log.debug("优质深度档案 %s: %s", code, e)
+        if prof:
+            out[code] = prof
+    conn.close()
+    log.info("优质榜深度档案: %d/%d", len(out), len(picks))
     return out
