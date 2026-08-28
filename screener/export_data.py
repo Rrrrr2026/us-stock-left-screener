@@ -318,3 +318,35 @@ def _loads(s, default=None):
         return json.loads(s)
     except Exception:
         return default
+
+
+def write_watch_js() -> None:
+    """全市场迷你行情表 -> dashboard/watch_data.js (以最近扫描价为准, 每日更新)。"""
+    import sqlite3
+    from . import datasource as ds
+    from .config import DASHBOARD_DIR, DB_PATH
+    try:
+        uni = ds.get_universe()
+        names = {str(r["code"]): str(r.get("name") or "") for _, r in uni.iterrows()} \
+            if uni is not None and not uni.empty else {}
+        ps_path = os.path.join(os.path.dirname(DB_PATH), "pricestore.db")
+        out = {}
+        if os.path.exists(ps_path):
+            conn = sqlite3.connect(ps_path)
+            for code, px in conn.execute(
+                    "SELECT b.code, b.c FROM bars b JOIN "
+                    "(SELECT code, MAX(d) md FROM bars GROUP BY code) m "
+                    "ON b.code=m.code AND b.d=m.md"):
+                try:
+                    px = float(px)
+                except (TypeError, ValueError):
+                    continue
+                if px > 0:
+                    out[str(code)] = [names.get(str(code), ""), round(px, 2), None]
+            conn.close()
+        path = os.path.join(DASHBOARD_DIR, "watch_data.js")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("window.__ALL__ = " + json.dumps(out, ensure_ascii=False) + ";\n")
+        log.info("全市场迷你行情: %d 只 -> watch_data.js", len(out))
+    except Exception as e:
+        log.warning("全市场迷你行情导出失败: %s", e)

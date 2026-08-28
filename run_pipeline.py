@@ -453,6 +453,10 @@ def run(use_cache=True):
     ex.write_csv(run_date)
     ex.write_history_snapshot(run_date)
     try:
+        ex.write_watch_js()
+    except Exception as e:
+        log.warning("watch_data 导出失败: %s", e)
+    try:
         from screener import backtest as bt
         bt.run_backtest()
     except Exception as e:
