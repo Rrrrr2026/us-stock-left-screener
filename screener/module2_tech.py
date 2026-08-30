@@ -359,9 +359,7 @@ def scan_one(code: str, name: str, df: pd.DataFrame, spot_row: dict | None = Non
             ma60_v = ma_vals.get(60)
             if ma60_v is not None and not np.isnan(ma60_v) and px >= float(ma60_v):
                 confirms.append("站上MA60")
-            if (vol_ratio_calc is not None and vol_ratio_calc >= 1.3
-                    and px >= float(close.iloc[-2])):
-                confirms.append("放量上攻")
+            # (2026-08-30 撤销) "放量上攻"加分与 M1⑤ 相反 — 缩量蓄势才是美股突破的有效因子
             coil_confirm = "/".join(confirms)
             cw = ccfg.get("weights", {})
             f_tight = max(0.0, 1.0 - range_pct / max(ccfg.get("range_max_pct", 16.0), 1e-6))
