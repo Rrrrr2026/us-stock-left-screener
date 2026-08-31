@@ -61,6 +61,7 @@ def simulate_risk(rows, axis, use_breaker=True, sizing="risk", eq0=EQ0):
         byd[r["date"]].append(r)
     cash, open_pos = eq0, []
     peak, blocked_until, trips = eq0, -1, 0
+    mdd_peak = eq0            # mdd 用独立全程峰值 — 熔断重臂的 peak 会分段掩盖跨周期回撤 (审计发现)
     trades = wins = 0
     taken = []
     fees = 0.0
@@ -96,7 +97,8 @@ def simulate_risk(rows, axis, use_breaker=True, sizing="risk", eq0=EQ0):
                 wins += (r["st"] == "won")
                 taken.append(r["ret"])
         equity = cash + sum(p[2] for p in open_pos)
-        mdd = min(mdd, equity / peak - 1.0)
+        mdd_peak = max(mdd_peak, equity)
+        mdd = min(mdd, equity / mdd_peak - 1.0)
         expo_sum += sum(p[2] for p in open_pos) / equity if equity > 0 else 0.0
     equity = cash + sum(p[2] * (1.0 + p[1]) for p in open_pos) - FEE * len(open_pos)
     years = len(axis) / 252.0
