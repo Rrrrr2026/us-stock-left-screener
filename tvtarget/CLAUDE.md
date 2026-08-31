@@ -21,3 +21,6 @@ scanner 接口写 `data/screen.json`）→ `build_page.py`（生成自包含的 
 
 约束：非官方接口，保持低频（每天一次级别）；`fetch_screen.py` 未在真实服务器实测过
 （沙箱不可直连），首次跑通前别串进关键路径。
+
+## 数据文件跟踪约定 (2026-08-31)
+data/screen.json 与 history_snap/、beat/ 为运行时数据, 不入git (服务器每日写入, git reset 不得回滚它们); 种子快照 data/screen_seed.json 入git, 全新克隆时 cp 为 screen.json 即可构建。
