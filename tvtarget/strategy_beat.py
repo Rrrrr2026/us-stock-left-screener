@@ -168,13 +168,19 @@ def cmd_replay():
     tickers = [s.split(":")[-1] for s in held_syms]
     px = yf.download(tickers, start=days[0], progress=False, auto_adjust=True,
                      group_by="ticker", threads=True)
+    today = datetime.date.today().isoformat()
     def bar(tk, day):
+        if day >= today:                      # 未收盘的交易日不执行 (次日重放补齐)
+            return None, None
         try:
             if len(tickers) == 1:
                 row = px.loc[day]
             else:
                 row = px[tk].loc[day]
-            return float(row["Close"]), float(row["High"])
+            c, h = float(row["Close"]), float(row["High"])
+            if c != c or h != h:              # NaN 守卫
+                return None, None
+            return c, h
         except Exception:
             return None, None
     open_pos, closed = {}, []
@@ -204,7 +210,7 @@ def cmd_replay():
                 tk = sym.split(":")[-1]
                 c, _ = bar(tk, day)
                 prev = snaps[days[i - 1]].get(sym)
-                if c and prev:
+                if c is not None and prev:
                     open_pos[sym] = {"sym": sym, "entry_day": day, "entry_px": c,
                                      "entry_avg": prev["tavg"], "tgt": prev["tavg"]}
     print(f"\n已了结 {len(closed)} 笔:")
