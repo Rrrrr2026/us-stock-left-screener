@@ -22,3 +22,4 @@ Thumbs.db
 
 # pre-core-merge backups (local only)
 */_pre_core_backup/
+tvtarget/output/

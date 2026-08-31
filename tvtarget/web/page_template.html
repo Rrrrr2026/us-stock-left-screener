@@ -1,0 +1,306 @@
+<title>目标价全线在上</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --line:#e1e0d9; --hair:rgba(11,11,11,.10); --accent:#2a78d6; --accent-ink:#1c5cab;
+  --bar:#9ec5f4; --bar-strong:#2a78d6; --good:#006300; --chipbg:#f0efec; --chip-on:#e2edfb;
+  --th:#fcfcfb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+    --line:#2c2c2a; --hair:rgba(255,255,255,.10); --accent:#3987e5; --accent-ink:#6da7ec;
+    --bar:#1c5cab; --bar-strong:#3987e5; --good:#0ca30c; --chipbg:#262624; --chip-on:#12335e;
+    --th:#1a1a19;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+  --line:#2c2c2a; --hair:rgba(255,255,255,.10); --accent:#3987e5; --accent-ink:#6da7ec;
+  --bar:#1c5cab; --bar-strong:#3987e5; --good:#0ca30c; --chipbg:#262624; --chip-on:#12335e;
+  --th:#1a1a19;
+}
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); margin:0;
+  font:14px/1.55 -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",system-ui,sans-serif;}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+.wrap{max-width:1240px; margin:0 auto; padding:28px 20px 60px;}
+header h1{font-size:26px; margin:0 0 6px; letter-spacing:.02em; text-wrap:balance;}
+header h1 .en{font-size:13px; font-weight:600; color:var(--accent-ink); letter-spacing:.14em; margin-left:10px;}
+.sub{color:var(--ink2); font-size:13px; margin:0;}
+.sub b{color:var(--ink); font-weight:600;}
+.meta{color:var(--muted); font-size:12px; margin-top:4px;}
+
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:20px 0 14px;}
+.tile{background:var(--surface); border:1px solid var(--hair); border-radius:6px; padding:12px 14px;}
+.tile .k{font-size:12px; color:var(--ink2); letter-spacing:.05em;}
+.tile .v{font-size:24px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums;}
+.tile .v small{font-size:13px; color:var(--muted); font-weight:400;}
+
+.panel{background:var(--surface); border:1px solid var(--hair); border-radius:6px; padding:14px 16px; margin-bottom:14px;}
+.filters{display:flex; flex-wrap:wrap; gap:14px 22px; align-items:flex-end;}
+.f{display:flex; flex-direction:column; gap:4px;}
+.f label{font-size:12px; color:var(--ink2); letter-spacing:.04em;}
+.f input[type=number], .f input[type=search]{
+  background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:4px;
+  padding:6px 8px; font:inherit; font-variant-numeric:tabular-nums; width:110px;}
+.f input[type=search]{width:180px;}
+.f input:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+.presets{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; align-items:center;}
+.presets .lbl{font-size:12px; color:var(--muted);}
+button.chip{background:var(--chipbg); color:var(--ink2); border:1px solid var(--hair); border-radius:999px;
+  padding:4px 12px; font:12px/1.5 inherit; font-family:inherit; cursor:pointer;}
+button.chip:hover{border-color:var(--accent);}
+button.chip.on{background:var(--chip-on); color:var(--ink); border-color:var(--accent);}
+button.chip:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+.sectors{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
+.sec-note{font-size:12px; color:var(--muted); margin-top:8px;}
+
+.tablebox{background:var(--surface); border:1px solid var(--hair); border-radius:6px; overflow:auto; max-height:72vh;}
+table{border-collapse:collapse; width:100%; min-width:1060px; font-size:13px;}
+thead th{position:sticky; top:0; background:var(--th); color:var(--ink2); font-weight:600; font-size:12px;
+  text-align:right; padding:9px 10px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none; white-space:nowrap; z-index:2;}
+thead th.l{text-align:left;}
+thead th:hover{color:var(--ink);}
+thead th .dir{color:var(--accent-ink); font-size:10px;}
+tbody td{padding:7px 10px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;}
+tbody td.l{text-align:left;}
+tbody tr:hover{background:var(--chipbg);}
+td a{color:var(--accent-ink); text-decoration:none; font-weight:600;}
+td a:hover{text-decoration:underline;}
+td .co{color:var(--ink2); font-size:12px; max-width:210px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:bottom;}
+td .sec{color:var(--muted); font-size:12px;}
+.upcell{position:relative; min-width:120px;}
+.upbar{position:absolute; left:4px; top:6px; bottom:6px; background:var(--bar); border-radius:0 3px 3px 0; opacity:.45; z-index:0;}
+.upcell b{position:relative; z-index:1; font-weight:600;}
+.rate{font-size:12px; border:1px solid var(--hair); background:var(--chipbg); border-radius:3px; padding:1px 7px; color:var(--ink2);}
+.rate.sb{color:var(--good); border-color:var(--good); background:transparent;}
+.more{display:flex; gap:14px; align-items:center; justify-content:center; padding:12px; color:var(--ink2); font-size:13px;}
+.more button{background:none; border:1px solid var(--line); color:var(--accent-ink); border-radius:4px; padding:6px 14px; font:inherit; cursor:pointer;}
+.more button:hover{border-color:var(--accent);}
+
+.export{margin-top:14px;}
+.export h2, .notes h2{font-size:15px; margin:0 0 8px;}
+.export .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px;}
+.export textarea{width:100%; height:96px; background:var(--bg); color:var(--ink2); border:1px solid var(--line);
+  border-radius:4px; font:12px/1.5 "IBM Plex Mono",monospace; padding:8px; resize:vertical;}
+.export .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+button.primary{background:var(--accent); color:#fff; border:none; border-radius:4px; padding:7px 16px; font:600 13px/1.5 inherit; font-family:inherit; cursor:pointer;}
+button.primary:hover{filter:brightness(1.08);}
+button.ghost{background:none; border:1px solid var(--line); color:var(--ink2); border-radius:4px; padding:6px 14px; font:inherit; cursor:pointer;}
+button.ghost:hover{border-color:var(--accent); color:var(--ink);}
+.copied{color:var(--good); font-size:12px;}
+
+.notes{margin-top:18px; color:var(--ink2); font-size:13px;}
+.notes p{margin:6px 0; max-width:72em;}
+.notes .dim{color:var(--muted); font-size:12px;}
+@media (max-width:640px){ .wrap{padding:18px 10px 40px;} header h1{font-size:21px;} .f input[type=number]{width:88px;} }
+@media (prefers-reduced-motion:no-preference){ .tile .v{transition:color .15s;} }
+</style>
+
+<div class="wrap">
+<header>
+  <p style="font-size:12px;margin:0 0 6px;opacity:.75">FairValpha 工作台附属板块 · <a href="https://fairvalpha.com/us/" style="color:inherit">← 返回美股工作台</a> · <a href="watchlist.txt" download style="color:inherit">下载 TradingView 自选列表</a></p>
+  <h1>目标价全线在上<span class="en mono">MIN &gt; PRICE</span></h1>
+  <p class="sub">美股中「分析师最低目标价也高于现价」的股票 —— Min 在现价之上，意味着 Min / Avg / Max 全部在上方。共 <b>__N_MATCH__</b> 只（全市场 __N_TOTAL__ 只有 ≥5 位分析师覆盖的股票中）。</p>
+  <p class="meta">价格为最近一个交易日收盘 · 数据抓取于 __FETCH_DATE__ · 来源：TradingView（与个股 Forecasts 页同源） · 目标价为一年期</p>
+</header>
+
+<div class="tiles">
+  <div class="tile"><div class="k">当前命中</div><div class="v" id="t-count">–</div></div>
+  <div class="tile"><div class="k">Min 上行空间 · 中位</div><div class="v" id="t-min">–</div></div>
+  <div class="tile"><div class="k">Avg 上行空间 · 中位</div><div class="v" id="t-avg">–</div></div>
+  <div class="tile"><div class="k">分析师数 · 中位</div><div class="v" id="t-n">–</div></div>
+  <div class="tile"><div class="k">市值 ≥ 百亿美元</div><div class="v" id="t-big">–</div></div>
+</div>
+
+<div class="panel">
+  <div class="filters">
+    <div class="f"><label for="f-min">现价 → Min 空间 ≥ (%)</label><input id="f-min" type="number" min="0" step="1" value="0"></div>
+    <div class="f"><label for="f-avg">现价 → Avg 涨幅 ≥ (%)</label><input id="f-avg" type="number" min="0" step="1" value="0"></div>
+    <div class="f"><label for="f-n">分析师数 ≥</label><input id="f-n" type="number" min="5" step="1" value="5"></div>
+    <div class="f"><label for="f-cap">市值 ≥ (亿美元)</label><input id="f-cap" type="number" min="0" step="10" value="0"></div>
+    <div class="f"><label for="f-q">搜索代码 / 公司</label><input id="f-q" type="search" placeholder="如 NBIX"></div>
+  </div>
+  <div class="presets">
+    <span class="lbl">快捷条件：</span>
+    <button class="chip" data-preset="reset">全部（重置）</button>
+    <button class="chip" data-preset="steady">稳健 · Min≥5% 分析师≥10 市值≥100亿</button>
+    <button class="chip" data-preset="aggr">进取 · Min≥20% 分析师≥8</button>
+  </div>
+  <div class="sectors" id="sectors"></div>
+  <div class="sec-note">点板块可多选；再点取消。不选 = 全部板块。</div>
+</div>
+
+<div class="tablebox">
+  <table id="tbl">
+    <thead><tr>
+      <th class="l" data-k="sym">代码</th>
+      <th class="l" data-k="name">公司 / 板块</th>
+      <th data-k="close">现价$</th>
+      <th data-k="tlow">Min目标</th>
+      <th data-k="tavg">Avg目标</th>
+      <th data-k="thigh">Max目标</th>
+      <th data-k="upmin">Min空间</th>
+      <th data-k="upavg">Avg空间</th>
+      <th data-k="upmax">Max空间</th>
+      <th data-k="n">分析师</th>
+      <th data-k="rate">评级</th>
+      <th data-k="cap">市值</th>
+    </tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+  <div class="more" id="more" hidden><span id="more-txt"></span><button id="more-btn">显示全部</button></div>
+</div>
+
+<div class="panel export">
+  <h2>导出为 TradingView 自选板块</h2>
+  <div class="row">
+    <button class="primary" id="gen">生成导入文本（当前筛选 <span id="gen-n">0</span> 只）</button>
+    <button class="ghost" id="copy" hidden>复制</button>
+    <span class="copied" id="copied" hidden>已复制 ✓</span>
+  </div>
+  <textarea id="out" class="mono" hidden readonly spellcheck="false"></textarea>
+  <p class="hint">用法：复制后粘贴到本地新建的 .txt 文件 → TradingView 右侧自选列表菜单 →「导入列表…」选择该文件，即得到一个独立板块（按行业分组）。列表过长可能受账户方案的符号数量上限限制，建议先收紧条件。</p>
+</div>
+
+<div class="notes">
+  <h2>说明</h2>
+  <p>筛选条件：NASDAQ / NYSE / AMEX 主要上市的普通股与 ADR（美元计价，不含 OTC）；给出评级的分析师 ≥ 5 位；分析师最低一年期目标价严格高于最新收盘价。</p>
+  <p>「分析师数」为给出<b>评级</b>的人数，与给出<b>目标价</b>的人数可能略有出入（如 NBIX：30 位评级、27 位给目标价）。评级由 TradingView 的均值映射：≤1.5 强烈买入、≤2.5 买入。</p>
+  <p class="dim">分析师目标价整体偏乐观（本条件命中约占有覆盖股票的一半），低价小盘股常因个别极端目标价而空间排名靠前，参考需谨慎。数据为静态快照，不随行情自动更新；如需刷新可再让 Claude 重跑一次。本页不构成投资建议。</p>
+</div>
+</div>
+
+<script>
+/*__DATA__*/
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const fmt$ = v => v>=1000 ? v.toFixed(0) : v>=1 ? v.toFixed(2) : v.toFixed(3);
+const fmtPct = v => '+' + v.toFixed(1) + '%';
+const fmtCap = b => { const yi = b*10; return yi >= 10000 ? (yi/10000).toFixed(2)+'万亿' : yi >= 10 ? yi.toFixed(0)+'亿' : yi.toFixed(1)+'亿'; };
+const median = a => { if(!a.length) return null; const s=[...a].sort((x,y)=>x-y), m=s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+
+// rows: [sym,name,secIdx,close,tlow,tavg,thigh,tmed,mark,ntotal,nsb,nb,nh,ns,nss,mcapB]
+const R = DATA.rows.map(r => ({
+  sym:r[0], tick:r[0].split(':')[1], name:r[1], sec:r[2], close:r[3], tlow:r[4], tavg:r[5], thigh:r[6],
+  mark:r[8], n:r[9], nsb:r[10], nb:r[11], nh:r[12], ns:r[13], nss:r[14], cap:r[15],
+  upmin:(r[4]/r[3]-1)*100, upavg:(r[5]/r[3]-1)*100, upmax:(r[6]/r[3]-1)*100
+}));
+
+const state = { min:0, avg:0, n:5, cap:0, q:'', secs:new Set(), sortK:'cap', sortD:-1, showAll:false };
+const CAP_ROWS = 400;
+
+// sector chips
+const secCount = {};
+R.forEach(r => secCount[r.sec] = (secCount[r.sec]||0)+1);
+DATA.sectors.forEach((s,i) => {
+  if(!(i in secCount)) return;
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = s + ' ' + secCount[i]; b.dataset.i = i;
+  b.onclick = () => { state.secs.has(i) ? state.secs.delete(i) : state.secs.add(i); b.classList.toggle('on'); refresh(); };
+  $('sectors').appendChild(b);
+});
+
+function filtered(){
+  const q = state.q.trim().toUpperCase();
+  return R.filter(r =>
+    r.upmin >= state.min && r.upavg >= state.avg && r.n >= state.n && r.cap*10 >= state.cap &&
+    (!state.secs.size || state.secs.has(r.sec)) &&
+    (!q || r.tick.includes(q) || r.name.toUpperCase().includes(q)));
+}
+function sorted(list){
+  const k = state.sortK, d = state.sortD;
+  const get = r => k==='sym' ? r.tick : k==='name' ? r.name : k==='rate' ? r.mark : k==='n' ? r.n : r[k];
+  return [...list].sort((a,b) => { const x=get(a), y=get(b); return (x<y?-1:x>y?1:0)*d; });
+}
+function rating(r){
+  const sb = r.mark <= 1.5;
+  const t = sb ? '强烈买入' : r.mark <= 2.5 ? '买入' : r.mark <= 3.5 ? '持有' : '卖出';
+  const tip = `强烈买入${r.nsb} · 买入${r.nb} · 持有${r.nh} · 卖出${r.ns} · 强烈卖出${r.nss}（均值${r.mark}）`;
+  return `<span class="rate${sb?' sb':''}" title="${tip}">${t}</span>`;
+}
+function render(list){
+  const rows = state.showAll ? list : list.slice(0, CAP_ROWS);
+  const maxUp = 100; // bar scale cap at +100%
+  $('tb').innerHTML = rows.map(r => {
+    const url = 'https://www.tradingview.com/symbols/' + r.sym.replace(':','-') + '/forecast/';
+    const w = Math.min(r.upmin, maxUp) / maxUp * 112;
+    return `<tr>
+      <td class="l mono"><a href="${url}" target="_blank" rel="noopener" title="在 TradingView 打开 Forecast 页">${r.tick}</a></td>
+      <td class="l"><span class="co" title="${esc(r.name)}">${esc(r.name)}</span><br><span class="sec">${DATA.sectors[r.sec]}</span></td>
+      <td class="mono">${fmt$(r.close)}</td>
+      <td class="mono">${fmt$(r.tlow)}</td>
+      <td class="mono">${fmt$(r.tavg)}</td>
+      <td class="mono">${fmt$(r.thigh)}</td>
+      <td class="upcell mono"><span class="upbar" style="width:${w.toFixed(0)}px"></span><b>${fmtPct(r.upmin)}</b></td>
+      <td class="mono">${fmtPct(r.upavg)}</td>
+      <td class="mono">${fmtPct(r.upmax)}</td>
+      <td class="mono">${r.n}</td>
+      <td>${rating(r)}</td>
+      <td class="mono">${fmtCap(r.cap)}</td>
+    </tr>`;
+  }).join('');
+  const hidden = list.length - rows.length;
+  $('more').hidden = hidden <= 0;
+  if(hidden > 0){ $('more-txt').textContent = `已显示前 ${rows.length} 条，还有 ${hidden} 条`; }
+}
+function refresh(){
+  const list = sorted(filtered());
+  $('t-count').innerHTML = list.length + '<small> / ' + R.length + '</small>';
+  $('t-min').textContent = list.length ? fmtPct(median(list.map(r=>r.upmin))) : '–';
+  $('t-avg').textContent = list.length ? fmtPct(median(list.map(r=>r.upavg))) : '–';
+  $('t-n').textContent = list.length ? Math.round(median(list.map(r=>r.n))) + ' 位' : '–';
+  $('t-big').textContent = list.filter(r=>r.cap>=10).length + ' 只';
+  $('gen-n').textContent = list.length;
+  document.querySelectorAll('thead th').forEach(th => {
+    const on = th.dataset.k === state.sortK;
+    th.innerHTML = th.textContent.replace(/[▲▼]\s*$/,'') + (on ? ` <span class="dir">${state.sortD<0?'▼':'▲'}</span>` : '');
+  });
+  render(list);
+  $('out').hidden = true; $('copy').hidden = true; $('copied').hidden = true;
+  window.__cur = list;
+}
+// filter inputs
+[['f-min','min'],['f-avg','avg'],['f-n','n'],['f-cap','cap']].forEach(([id,k]) => {
+  $(id).addEventListener('input', e => { state[k] = +e.target.value || 0; state.showAll=false; refresh(); });
+});
+$('f-q').addEventListener('input', e => { state.q = e.target.value; state.showAll=false; refresh(); });
+// presets
+document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+  const p = b.dataset.preset;
+  const v = p==='steady' ? {min:5,avg:0,n:10,cap:100} : p==='aggr' ? {min:20,avg:0,n:8,cap:0} : {min:0,avg:0,n:5,cap:0};
+  Object.assign(state, v, {showAll:false});
+  $('f-min').value=v.min; $('f-avg').value=v.avg; $('f-n').value=v.n; $('f-cap').value=v.cap;
+  if(p==='reset'){ state.q=''; $('f-q').value=''; state.secs.clear(); document.querySelectorAll('.sectors .chip.on').forEach(c=>c.classList.remove('on')); }
+  refresh();
+});
+// sorting
+document.querySelectorAll('thead th').forEach(th => th.onclick = () => {
+  const k = th.dataset.k;
+  if(state.sortK === k){ state.sortD *= -1; } else { state.sortK = k; state.sortD = (k==='sym'||k==='name') ? 1 : -1; }
+  refresh();
+});
+$('more-btn').onclick = () => { state.showAll = true; render(window.__cur); };
+// export
+$('gen').onclick = () => {
+  const list = window.__cur || [];
+  const bySec = {};
+  list.forEach(r => (bySec[r.sec] = bySec[r.sec] || []).push(r.sym));
+  const parts = [];
+  Object.keys(bySec).sort((a,b)=>bySec[b].length-bySec[a].length)
+    .forEach(s => { parts.push('###' + DATA.sectors[s].toUpperCase().replace(/,/g,' ')); parts.push(...bySec[s]); });
+  $('out').value = parts.join(',');
+  $('out').hidden = false; $('copy').hidden = false; $('copied').hidden = true;
+};
+$('copy').onclick = async () => {
+  const ta = $('out');
+  let ok = false;
+  try { await navigator.clipboard.writeText(ta.value); ok = true; }
+  catch(e){ ta.focus(); ta.select(); try { ok = document.execCommand('copy'); } catch(e2){ ok = false; } }
+  $('copied').textContent = ok ? '已复制 ✓' : '已全选，请按 Ctrl/Cmd+C 复制';
+  $('copied').hidden = false;
+};
+refresh();
+</script>
