@@ -51,6 +51,8 @@ def scan():
     cost = m.cost_rt
     data = ps.load(sorted(ps.last_dates()))
     log.info("fastgrid: %d 只票", len(data))
+    reg = xg._regime_map()
+    reg_dates = np.array(reg[0]) if reg is not None else None
     eps = []
     for ci, (code, ser) in enumerate(data.items(), 1):
         dates, ohlcv = ser["dates"], ser["ohlcv"]
@@ -86,15 +88,20 @@ def scan():
                     a = float(np.clip(atr[t] / c[t], 0.008, 0.08))
                     cells = xg._sim(o, h, l, c, e, fill, fill, a, None, cost)
                     if CELL in cells:
-                        eps.append({
+                        ep = {
                             "date": dates[t],
                             "atrp": float(atr[t] / c[t]),
                             "sret": float(np.clip(1.8 * a, 0.05, 0.15)),
                             "rsi": {p: (float(rmulti[p][t])
                                         if not np.isnan(rmulti[p][t]) else None)
                                     for p in PERIODS},
-                            "cell": cells[CELL],
-                        })
+                            "cells": cells,
+                        }
+                        if reg_dates is not None:
+                            ri = int(np.searchsorted(reg_dates, dates[t], side="right")) - 1
+                            ep["regime"] = ("bull" if (0 <= ri < len(reg[1]) and reg[1][ri])
+                                            else "bear")
+                        eps.append(ep)
                         next_ok = e + xg.HOLD + xg.COOLDOWN
             t += xg.STRIDE
         if ci % 1000 == 0:
@@ -103,13 +110,14 @@ def scan():
     return eps
 
 
-def agg(rows):
+def agg(rows, cell=CELL):
+    rows = [r for r in rows if cell in r["cells"]]
     if not rows:
         return None
-    rets = [r["cell"][0] for r in rows]
+    rets = [r["cells"][cell][0] for r in rows]
     return {"n": len(rows),
-            "win": round(sum(1 for r in rows if r["cell"][2] == "won") / len(rows), 3),
-            "stop_rate": round(sum(1 for r in rows if r["cell"][2] == "stopped") / len(rows), 3),
+            "win": round(sum(1 for r in rows if r["cells"][cell][2] == "won") / len(rows), 3),
+            "stop_rate": round(sum(1 for r in rows if r["cells"][cell][2] == "stopped") / len(rows), 3),
             "avg_ret": round(float(np.mean(rets)), 4),
             "med_ret": round(float(np.median(rets)), 4),
             "avg_sret": round(float(np.mean([r["sret"] for r in rows])), 4)}
