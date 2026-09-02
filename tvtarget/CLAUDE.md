@@ -24,3 +24,5 @@ scanner 接口写 `data/screen.json`）→ `build_page.py`（生成自包含的 
 
 ## 数据文件跟踪约定 (2026-08-31)
 data/screen.json 与 history_snap/、beat/ 为运行时数据, 不入git (服务器每日写入, git reset 不得回滚它们); 种子快照 data/screen_seed.json 入git, 全新克隆时 cp 为 screen.json 即可构建。
+
+快照/信号档命名 = 数据日期 (screen.json fetchedAt 的 UTC 日期; 00:15 CEST 抓取 = 美东当日收盘), 两者必须同键, 否则 replay 永不开仓 (2026-09-02 修)。
